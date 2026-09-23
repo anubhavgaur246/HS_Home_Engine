@@ -8,6 +8,7 @@
   /* Color Palette - Executive Midnight Slate */
   --bg-canvas: #070A13;
   --bg-card: rgba(11, 17, 32, 0.82);
+  --bg-card-solid: #0B1120;
   --bg-card-hover: rgba(15, 23, 44, 0.92);
   --bg-elevated: rgba(18, 28, 54, 0.75);
   --bg-pill: rgba(255, 255, 255, 0.05);
@@ -55,6 +56,7 @@
 [data-theme="light"] {
   --bg-canvas: #F8FAFC;
   --bg-card: rgba(255, 255, 255, 0.92);
+  --bg-card-solid: #FFFFFF;
   --bg-card-hover: #FFFFFF;
   --bg-elevated: #F1F5F9;
   --bg-pill: rgba(0, 0, 0, 0.04);
@@ -571,6 +573,47 @@ body {
   border: 1px solid var(--border-hairline);
 }
 
+.suite-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.suite-coming-soon-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid rgba(20, 184, 166, 0.65);
+  border-radius: 12px 12px 4px 12px;
+  background: linear-gradient(135deg, #115E59, #0F766E);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18), 0 0 18px rgba(129, 140, 248, 0.12);
+  color: #FFFFFF;
+  white-space: nowrap;
+}
+
+[data-theme="light"] .suite-coming-soon-banner { background: #0F766E; }
+
+.suite-coming-soon-kicker {
+  color: #FDE68A;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.suite-coming-soon-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.suite-coming-soon-detail {
+  color: #CCFBF1;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
 /* ==========================================================================
    TOOL CARDS - 2x2 CLEAN GRID
    ========================================================================== */
@@ -579,6 +622,7 @@ body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 26px;
+  align-items: start;
 }
 
 @media (max-width: 860px) {
@@ -592,10 +636,11 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--bg-card);
+  background: var(--bg-card-solid);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
   padding: 32px;
+  min-height: 270px;
   text-decoration: none;
   color: inherit;
   box-shadow: var(--shadow-card);
@@ -764,7 +809,6 @@ body {
 .card-content-block {
   display: flex;
   flex-direction: column;
-  flex: 1;
 }
 
 .card-title-premium {
@@ -833,6 +877,7 @@ body {
   margin-top: auto;
   padding-top: 18px;
   border-top: 1px solid var(--border-hairline);
+  flex-wrap: nowrap;
 }
 
 .card-sso-indicator {
@@ -910,16 +955,17 @@ body {
 /* Executive Floating Launcher */
 .bot-launcher-executive {
   position: fixed;
-  bottom: 12px;
-  right: 12px;
+  bottom: 68px;
+  right: 20px;
   z-index: 100;
   display: inline-flex;
   align-items: center;
-  width: 42px;
-  height: 42px;
+  gap: 8px;
+  min-width: 42px;
+  height: 48px;
   justify-content: center;
-  padding: 4px;
-  border-radius: 50%;
+  padding: 6px 12px 6px 7px;
+  border-radius: 24px;
   background: rgba(9, 14, 28, 0.95);
   border: 1px solid rgba(56, 189, 248, 0.4);
   box-shadow: 
@@ -1801,10 +1847,10 @@ body {
 .hero-description-premium { font-size: 0.88rem; line-height: 1.4; margin-bottom: 0; }
 .tools-section-container { padding: 6px 0 12px; display: flex; flex: 1; }
 .tools-section-container > .container { display: flex; flex-direction: column; width: 100%; }
-.suite-header-row { margin-bottom: 14px; padding-bottom: 8px; }
+.suite-header-row { margin-bottom: 24px; padding-bottom: 8px; }
 .suite-coming-soon { font-size: 0.76rem; color: var(--text-med); }
 .tools-grid-premium { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.tool-card-premium { min-height: 0; padding: 18px; }
+.tool-card-premium { min-height: 270px; padding: 18px; }
 .card-top-row { margin-bottom: 14px; }
 .card-top-badges { gap: 5px; align-items: flex-end; }
 .card-new-banner {
@@ -1832,7 +1878,7 @@ body {
 .card-description-premium { font-size: 0.82rem; line-height: 1.45; }
 .capabilities-wrap { gap: 5px; margin-top: 12px; }
 .capability-tag { font-size: 0.7rem; }
-.card-action-footer { margin-top: 14px; gap: 7px; justify-content: flex-end; flex-wrap: wrap; }
+.card-action-footer { margin-top: 14px; gap: 5px; justify-content: flex-end; }
 .card-video-link {
   display: inline-flex;
   align-items: center;
@@ -1853,18 +1899,16 @@ body {
 .footer-tagline, .footer-copy-text { font-size: 0.68rem; }
 
 @media (min-width: 769px) {
-  html, body, #root { height: 100%; overflow: hidden; }
-  .app-canvas { height: 100%; }
+  html, body, #root { min-height: 100%; overflow-x: hidden; overflow-y: auto; }
+  .app-canvas { min-height: 100vh; }
   .header-inner { height: 62px; }
   .brand-emblem-premium { width: 36px; height: 36px; }
   .brand-emblem-premium svg { width: 23px; height: 23px; }
-  .tools-grid-premium { flex: 1; align-items: stretch; }
-  .tool-card-premium { height: 100%; }
   .site-footer-premium { flex: 0 0 auto; }
 }
 
 /* Keep the complete dashboard usable on compact laptop displays. */
-@media (min-width: 769px) and (max-height: 700px) {
+@media (min-width: 769px) and (max-height: 800px) {
   .header-inner { height: 54px; }
   .brand-emblem-premium { width: 32px; height: 32px; }
   .brand-emblem-premium svg { width: 20px; height: 20px; }
@@ -1873,25 +1917,30 @@ body {
   .header-search { padding-block: 4px; }
   .header-assistant-btn { padding: 5px 10px; }
   .theme-toggle-premium { width: 32px; height: 32px; }
-  .hero-section-premium { padding: 10px 0 5px; }
+  .hero-section-premium { padding: 22px 0 8px; }
   .hero-eyebrow-wrap { display: none; }
   .hero-title-premium { font-size: clamp(1.35rem, 2.3vw, 1.8rem); margin-bottom: 2px; }
   .hero-description-premium { font-size: 0.78rem; }
   .tools-section-container { padding-block: 3px 6px; }
-  .suite-header-row { margin-bottom: 7px; padding-bottom: 5px; }
+  .suite-header-row { margin-bottom: 16px; padding-bottom: 5px; }
   .suite-eyebrow, .suite-coming-soon { font-size: 0.64rem; }
   .suite-title { font-size: 1.12rem; }
   .suite-count-pill { padding: 3px 9px; font-size: 0.66rem; }
+  .suite-header-actions { gap: 6px; }
+  .suite-coming-soon-banner { gap: 5px; padding: 5px 8px; }
+  .suite-coming-soon-kicker { font-size: 0.52rem; }
+  .suite-coming-soon-title { font-size: 0.66rem; }
+  .suite-coming-soon-detail { font-size: 0.58rem; }
   .tools-grid-premium { gap: 10px; }
-  .tool-card-premium { padding: 13px; }
+  .tool-card-premium { min-height: 375px; padding: 18px; }
   .card-top-row { margin-bottom: 7px; }
   .icon-badge-root, .icon-badge-svg { width: 48px; height: 48px; }
   .card-title-premium { font-size: 1.05rem; margin-bottom: 4px; }
   .card-description-premium { font-size: 0.72rem; line-height: 1.32; margin-bottom: 7px; }
   .capabilities-wrap { gap: 3px; margin-bottom: 6px; }
   .capability-tag { padding: 2px 5px; font-size: 0.61rem; }
-  .card-action-footer { margin-top: 7px; padding-top: 8px; }
-  .card-manual-link, .card-video-link, .action-launch-btn { padding: 4px 7px; font-size: 0.64rem; }
+  .card-action-footer { margin-top: auto; padding-top: 16px; gap: 4px; }
+  .card-manual-link, .card-video-link, .action-launch-btn { gap: 4px; padding: 5px 6px; font-size: 0.62rem; white-space: nowrap; }
   .card-new-banner { top: 11px; right: 11px; min-width: 125px; padding: 6px 8px 7px; }
   .site-footer-premium { padding: 5px 0; }
   .footer-tagline, .footer-copy-text { display: none; }
@@ -1906,6 +1955,7 @@ body {
   .header-assistant-btn { display: none; }
   .header-search { width: 145px; }
   .hero-section-premium { padding-top: 24px; }
+  .suite-header-actions { align-items: flex-end; flex-direction: column; gap: 7px; }
 }
 
 @media (max-width: 640px) {
@@ -1914,6 +1964,11 @@ body {
   .header-search:focus-within { width: 150px; }
   .header-search:focus-within input, .header-search:focus-within button { display: block; }
   .tools-grid-premium { grid-template-columns: 1fr; }
+  .tool-card-premium { min-height: 0; }
+  .card-action-footer { flex-wrap: wrap; }
+  .suite-header-row { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .suite-header-actions { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+  .suite-coming-soon-banner { white-space: normal; }
 }
 
 /* Accessibility: Reduced Motion */

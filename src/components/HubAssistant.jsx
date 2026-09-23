@@ -304,14 +304,18 @@ export function HubAssistant({ isOpen, onClose, onOpen }) {
           type="button"
           className="bot-launcher-executive"
           onClick={onOpen}
-          aria-label="Open Highspring AI Assistant"
-          title="Open AI Assistant & User Manuals"
+          aria-label="Open AI Agent"
+          title="Open AI Agent"
         >
           <div className="launcher-specular-ring" aria-hidden="true" />
           <div className="launcher-avatar-core">
             <Sparkles size={18} className="launcher-sparkle" />
             <span className="launcher-live-beacon" />
           </div>
+          <span className="launcher-label-group" aria-hidden="true">
+            <span className="launcher-main-text">AI Agent</span>
+            <span className="launcher-sub-text">Ask for help</span>
+          </span>
         </button>
       )}
 

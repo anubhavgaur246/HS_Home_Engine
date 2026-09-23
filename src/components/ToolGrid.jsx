@@ -25,11 +25,17 @@ export function ToolGrid({ tools, searchQuery, onResetSearch }) {
             <h2 id="suite-section-title" className="suite-title">
               Internal Applications
             </h2>
-            <p className="suite-coming-soon">More AI solutions are coming soon (Quality AI).</p>
           </div>
 
-          <div className="suite-count-pill">
-            <span>{filteredTools.length} of {tools.length} Tools Ready</span>
+          <div className="suite-header-actions">
+            <div className="suite-coming-soon-banner" role="status">
+              <span className="suite-coming-soon-kicker">New</span>
+              <span className="suite-coming-soon-title">Capacitor Tool</span>
+              <span className="suite-coming-soon-detail">Coming soon</span>
+            </div>
+            <div className="suite-count-pill">
+              <span>{filteredTools.length} of {tools.length} Tools Ready</span>
+            </div>
           </div>
         </div>
 

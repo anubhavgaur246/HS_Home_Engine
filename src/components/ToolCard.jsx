@@ -3,10 +3,29 @@ import { ArrowUpRight, CheckCircle2, ShieldCheck, BookOpen, Video } from 'lucide
 import { ToolIconBadge } from './ToolIconBadge';
 
 export function ToolCard({ tool }) {
+  const openSolution = () => {
+    window.open(tool.url, tool.openInNewTab ? '_blank' : '_self', tool.openInNewTab ? 'noopener,noreferrer' : undefined);
+  };
+
+  const handleCardKeyDown = (event) => {
+    if (event.target.closest('a, button, input')) return;
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openSolution();
+    }
+  };
+
   return (
     <article
       className={`tool-card-premium theme-${tool.themeKey}`}
       role="listitem"
+      tabIndex="0"
+      onClick={(event) => {
+        if (!event.target.closest('a, button, input')) openSolution();
+      }}
+      onKeyDown={handleCardKeyDown}
+      aria-label={`Open ${tool.name}`}
     >
       {/* Specular Edge Gradient Layer */}
       <div className="card-ambient-glow" aria-hidden="true" />
@@ -62,6 +81,7 @@ export function ToolCard({ tool }) {
             rel="noopener noreferrer"
             className="card-manual-link"
             title={`Open ${tool.manualName || 'User Guide'}`}
+            onClick={(event) => event.stopPropagation()}
           >
             <BookOpen size={13} aria-hidden="true" />
             <span>User Manual</span>
@@ -74,14 +94,14 @@ export function ToolCard({ tool }) {
         )}
 
         {tool.videoUrl && (
-          <a href={tool.videoUrl} target="_blank" rel="noopener noreferrer" className="card-video-link">
+          <a href={tool.videoUrl} target="_blank" rel="noopener noreferrer" className="card-video-link" onClick={(event) => event.stopPropagation()}>
             <Video size={13} aria-hidden="true" />
             <span>Video Manual</span>
           </a>
         )}
-        <a href={tool.url} target={tool.openInNewTab ? '_blank' : '_self'} rel={tool.openInNewTab ? 'noopener noreferrer' : undefined} className="action-launch-btn" aria-label={`Launch ${tool.name}`}>
+        <a href={tool.url} target={tool.openInNewTab ? '_blank' : '_self'} rel={tool.openInNewTab ? 'noopener noreferrer' : undefined} className="action-launch-btn" aria-label={`Launch ${tool.name}`} onClick={(event) => event.stopPropagation()}>
           <ArrowUpRight size={14} aria-hidden="true" />
-          <span>Open Solution</span>
+          <span>Launch</span>
         </a>
       </div>
     </article>

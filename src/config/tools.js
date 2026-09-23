@@ -30,7 +30,7 @@ export const USER_MANUALS = {
   RATING_AUTOMATION: {
     name: "Highspring Assessment Portal TA/QA User Guide",
     shortName: "HAT User Manual",
-    url: "https://docs.google.com/document/d/1XUF1lr3G7PU6oZHXtH2uwxxf-MT_vQaREj1mzbJpFNw/edit?tab=t.0#heading=h.qevzwlb86ous",
+    url: "https://docs.google.com/document/d/1rzr9tf8UXMWMdq1r9Uz93TtNe7wuDuM_OzNAUcaCb-w/edit?tab=t.0#heading=h.8yvjavk1ga4p",
   },
 };
 
@@ -51,7 +51,7 @@ export const TOOLS = [
     manualUrl: "https://docs.google.com/document/d/1PACeEnQhRby6JBj6Dytiuts6x3srSEVoJq4NjDKpJsk/edit?pli=1&tab=t.zg5um7asnpzz#heading=h.xw8pywpyke42",
     manualName: "Staffing Solution User Manual",
     videoUrl: "https://drive.google.com/file/d/1EjL_MMaPge8y72exZOnwdYz4Z-bn4Gd7/view?usp=sharing",
-    openInNewTab: false,
+    openInNewTab: true,
     status: "Active System",
     category: "Talent Acquisition",
     themeKey: "cyan",
@@ -82,7 +82,7 @@ export const TOOLS = [
     manualName: USER_MANUALS.HAT.shortName,
     isNew: true,
     newLabel: "Graduate & early-career hiring",
-    openInNewTab: false,
+    openInNewTab: true,
     status: "Active System",
     category: "Candidate Evaluation",
     themeKey: "indigo",
@@ -112,7 +112,7 @@ export const TOOLS = [
     manualUrl: USER_MANUALS.RATING_AUTOMATION.url,
     manualName: "Performance Evaluation User Manual",
     videoUrl: "https://drive.google.com/file/d/1mS9BH8VnDrJy3TuKSmPMgocRhwOozDNp/view?usp=drive_link",
-    openInNewTab: false,
+    openInNewTab: true,
     status: "Active System",
     category: "Workflow Automation",
     themeKey: "amber",
