@@ -7,6 +7,6 @@ app = FastAPI()
 app.include_router(data_upload_router, prefix="/data-upload", tags=["Data upload"])
 
 
-@app.get("/")
-def read_root():
-    return {"message": "Hello World from FastAPI!"}
+@app.get("/health")
+def health():
+    return {"message": "Success"}
