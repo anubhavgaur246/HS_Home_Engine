@@ -49,7 +49,7 @@ def import_employees(db: Session, employees: list[EmployeeImport]) -> EmployeeIm
                 first_name=employee.first_name,
                 last_name=employee.last_name,
                 role=employee.role,
-                reset_password=True,
+                is_password_reset_required=True,
             )
         )
         created += 1
