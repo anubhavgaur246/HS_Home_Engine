@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from sqlalchemy import inspect
 
-from modules.data_upload.routes import router as data_upload_router
-from modules.auth.routes import router as auth_router
 from core.database import SessionLocal
+from modules.auth.routes import router as auth_router
 from modules.auth.services import ensure_super_admin
+from modules.data_upload.routes import router as data_upload_router
+from shared.utils import generic_json_response
 
 
 app = FastAPI()
@@ -24,4 +25,10 @@ def bootstrap_super_admin():
 
 @app.get("/health")
 def health():
-    return {"message": "Success"}
+    return generic_json_response(
+        success=True,
+        status_code=200,
+        message="Success",
+        data={"status": "healthy"},
+        error=None,
+    )

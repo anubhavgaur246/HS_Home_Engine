@@ -6,5 +6,9 @@ dist/
 .vite/
 .DS_Store
 npm-debug.log*
+# Python cache files anywhere in the project
 __pycache__/
+**/__pycache__/
+backend/**/__pycache__/
 *.py[cod]
+**/*.py[cod]

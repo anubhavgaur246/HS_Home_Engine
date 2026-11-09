@@ -20,15 +20,17 @@ def _token_part(value: dict) -> str:
     ).rstrip(b"=").decode()
 
 
-def create_access_token(user: User) -> str:
+def create_access_token(user: User, *, reset_password: bool = False) -> str:
     now = datetime.now(timezone.utc)
+    expires_in = 15 if reset_password else settings.ACCESS_TOKEN_EXPIRE_MINUTES
     header = _token_part({"alg": "HS256", "typ": "JWT"})
     payload = _token_part({
         "sub": str(user.id),
         "email": user.hs_email_id,
         "role": user.role.value,
+        "reset_password": reset_password,
         "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)).timestamp()),
+        "exp": int((now + timedelta(minutes=expires_in)).timestamp()),
     })
     signing_input = f"{header}.{payload}".encode()
     signature = hmac.new(settings.SECRET_KEY.encode(), signing_input, hashlib.sha256).digest()
@@ -72,7 +74,7 @@ def ensure_super_admin(db: Session) -> None:
             first_name="Super",
             last_name="Admin",
             role=RoleType.SUPER_ADMIN,
-            reset_password=False,
+            is_password_reset_required=False,
         )
         db.add(user)
     else:

@@ -513,6 +513,14 @@ body {
 .login-intro { margin-top:6px; color:var(--text-med); font-size:.9rem; }
 .login-form { display:grid; gap:17px; margin-top:25px; }
 .login-form label { display:grid; gap:7px; color:var(--text-high); font-size:.82rem; font-weight:650; }
+.password-input-wrap { position:relative; }
+.password-input-wrap input { width:100%; min-height:46px; padding:0 42px 0 13px; border:1px solid var(--border-card); border-radius:10px; outline:none; color:var(--text-high); background:var(--bg-pill); font:inherit; }
+.password-input-wrap input:focus { border-color:var(--cyan-core); box-shadow:0 0 0 3px var(--cyan-glow); }
+.password-toggle-btn { position:absolute; top:50%; right:12px; transform:translateY(-50%); display:grid; place-items:center; width:28px; height:28px; border:none; border-radius:8px; background:transparent; color:var(--text-med); cursor:pointer; }
+.password-toggle-btn:hover { color:var(--text-high); background:rgba(148,163,184,.08); }
+.password-match-status { margin-top:-6px; font-size:.78rem; font-weight:600; }
+.password-match-status.success { color:#34D399; }
+.password-match-status.error { color:#F87171; }
 .login-form input { width:100%; min-height:46px; padding:0 13px; border:1px solid var(--border-card); border-radius:10px; outline:none; color:var(--text-high); background:var(--bg-pill); font:inherit; }
 .login-form input:focus { border-color:var(--cyan-core); box-shadow:0 0 0 3px var(--cyan-glow); }
 .login-error { color:#F87171; font-size:.82rem; }

@@ -32,7 +32,15 @@ class User(Base):
         default=RoleType.USER
     )
 
-    reset_password = Column(Boolean, nullable=False, default=False)
+    is_password_reset_required = Column(Boolean, nullable=False, default=True)
+
+    @property
+    def is_reset_password_required(self):
+        return self.is_password_reset_required
+
+    @is_reset_password_required.setter
+    def is_reset_password_required(self, value):
+        self.is_password_reset_required = value
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
