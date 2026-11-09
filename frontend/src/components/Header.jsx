@@ -1,7 +1,7 @@
 import React from 'react';
 import { Bot, Moon, Sun, Search, X } from 'lucide-react';
 
-export function Header({ theme, onToggleTheme, onOpenAssistant, searchQuery, setSearchQuery }) {
+export function Header({ theme, onToggleTheme, onOpenAssistant, searchQuery, setSearchQuery, user, onLogin, onLogout }) {
   return (
     <header className="site-header" role="banner">
       <div className="container header-inner">
@@ -40,6 +40,10 @@ export function Header({ theme, onToggleTheme, onOpenAssistant, searchQuery, set
           >
             <Bot size={16} className="btn-bot-icon" />
             <span>Hub Assistant & Manuals</span>
+          </button>
+
+          <button type="button" className="header-login-btn" onClick={user ? onLogout : onLogin}>
+            {user ? 'Sign out' : 'Login'}
           </button>
 
           {/* Theme Toggle Button */}

@@ -1,2 +1,10 @@
 /backend/.env
 /venv
+/backend/.venv/
+node_modules/
+dist/
+.vite/
+.DS_Store
+npm-debug.log*
+__pycache__/
+*.py[cod]
