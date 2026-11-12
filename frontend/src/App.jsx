@@ -5,6 +5,7 @@ import { Hero } from './components/Hero';
 import { ToolGrid } from './components/ToolGrid';
 import { Footer } from './components/Footer';
 import { HubAssistant } from './components/HubAssistant';
+import { UserManagement } from './components/UserManagement';
 import { TOOLS } from './config/tools';
 
 export function App() {
@@ -13,10 +14,13 @@ export function App() {
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [pathname, setPathname] = useState(() => window.location.pathname);
+  const [adminSection, setAdminSection] = useState('all');
   const [user, setUser] = useState(() => {
     const token = sessionStorage.getItem('hs-access-token');
     const email = sessionStorage.getItem('hs-user-email');
-    return token && email ? { token, email } : null;
+    const role = sessionStorage.getItem('hs-user-role');
+    return token && email ? { token, email, role } : null;
   });
   const [showLogin, setShowLogin] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
@@ -31,10 +35,32 @@ export function App() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const navigate = (path, replace = false) => {
+    if (window.location.pathname !== path) {
+      window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
+    }
+    setPathname(path);
+  };
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('highspring-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    const handlePopState = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    const isAdminPath = pathname === '/admin' || pathname === '/admin/users';
+    if (user?.role === 'SUPER_ADMIN' && !isAdminPath) {
+      navigate('/admin', true);
+    } else if (pathname.startsWith('/admin') && user?.role !== 'SUPER_ADMIN') {
+      navigate('/', true);
+    }
+  }, [pathname, user?.role]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -43,7 +69,9 @@ export function App() {
   const setSessionUser = (result) => {
     sessionStorage.setItem('hs-access-token', result.access_token);
     sessionStorage.setItem('hs-user-email', result.email);
-    setUser({ token: result.access_token, email: result.email });
+    sessionStorage.setItem('hs-user-role', result.role || '');
+    setUser({ token: result.access_token, email: result.email, role: result.role || '' });
+    navigate(result.role === 'SUPER_ADMIN' ? '/admin' : '/');
   };
 
   const resetLoginForm = () => {
@@ -152,7 +180,9 @@ export function App() {
   const logout = () => {
     sessionStorage.removeItem('hs-access-token');
     sessionStorage.removeItem('hs-user-email');
+    sessionStorage.removeItem('hs-user-role');
     setUser(null);
+    navigate('/');
   };
 
   return (
@@ -167,6 +197,11 @@ export function App() {
         theme={theme}
         onToggleTheme={toggleTheme}
         onOpenAssistant={() => setIsAssistantOpen(true)}
+        onUserManagementSelect={(section) => {
+          setAdminSection(section);
+          navigate('/admin/users');
+        }}
+        onGoHome={() => navigate(user?.role === 'SUPER_ADMIN' ? '/admin' : '/')}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         user={user}
@@ -175,12 +210,23 @@ export function App() {
       />
 
       <main id="main-content" className="main-content-flow">
-        <Hero />
-        <ToolGrid
-          tools={TOOLS}
-          searchQuery={searchQuery}
-          onResetSearch={() => setSearchQuery('')}
-        />
+        {pathname === '/admin/users' && user?.role === 'SUPER_ADMIN' ? (
+          <UserManagement
+            user={user}
+            section={adminSection}
+            onSectionChange={setAdminSection}
+            onGoHome={() => navigate('/admin')}
+          />
+        ) : (
+          <>
+            <Hero />
+            <ToolGrid
+              tools={TOOLS}
+              searchQuery={searchQuery}
+              onResetSearch={() => setSearchQuery('')}
+            />
+          </>
+        )}
       </main>
 
       <Footer />
