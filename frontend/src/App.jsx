@@ -30,6 +30,7 @@ export function App() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const AUTH_API_BASE = '/api/auth';
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -69,7 +70,7 @@ export function App() {
     setLoginMessage('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${AUTH_API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
@@ -118,7 +119,7 @@ export function App() {
     }
 
     try {
-      const resetResponse = await fetch('/api/auth/reset-password', {
+      const resetResponse = await fetch(`${AUTH_API_BASE}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: resetToken, new_password: newPassword }),
@@ -129,7 +130,7 @@ export function App() {
         throw new Error(resetResult?.detail || resetResult?.error || 'Unable to reset your password.');
       }
 
-      const loginResponse = await fetch('/api/auth/login', {
+      const loginResponse = await fetch(`${AUTH_API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: newPassword }),
@@ -180,6 +181,8 @@ export function App() {
           tools={TOOLS}
           searchQuery={searchQuery}
           onResetSearch={() => setSearchQuery('')}
+          user={user}
+          onRequireLogin={() => setShowLogin(true)}
         />
       </main>
 

@@ -6,24 +6,34 @@ from core.database import get_db
 from core.security import hash_password
 from modules.data_upload.models import User
 from shared.utils import generic_json_response
+from shared.constants import ResponseMessageConstants
 from .schemas import LoginPayload, ResetPasswordPayload
 from .services import authenticate, create_access_token, decode_access_token, ensure_super_admin
 
 
-router = APIRouter()
+router = APIRouter(prefix="/auth")
 
 
 @router.post("/login")
 def login(payload: LoginPayload, db: Session = Depends(get_db)):
     try:
         ensure_super_admin(db)
-        user = authenticate(db, payload.email, payload.password)
-
+        try:
+            user = authenticate(db, payload.email, payload.password)
+        except HTTPException as err:
+            return generic_json_response(
+                success=False,
+                status_code=err.status_code,
+                message=ResponseMessageConstants.USER_NOT_FOUND,
+                error = str(err.detail),
+                data=None          
+            )
+        
         if user.is_password_reset_required:
             return generic_json_response(
                 success=True,
                 status_code=200,
-                message="Password reset required.",
+                message=ResponseMessageConstants.PASSWORD_RESET_REQUIRED,
                 data={
                     "requires_password_reset": True,
                     "reset_token": create_access_token(user, reset_password=True),
@@ -36,7 +46,7 @@ def login(payload: LoginPayload, db: Session = Depends(get_db)):
         return generic_json_response(
             success=True,
             status_code=200,
-            message="Login successful.",
+            message=ResponseMessageConstants.LOGIN_SUCCESSFULL,
             data={
                 "access_token": create_access_token(user),
                 "email": user.hs_email_id,
@@ -49,7 +59,7 @@ def login(payload: LoginPayload, db: Session = Depends(get_db)):
         return generic_json_response(
             success=False,
             status_code=exc.status_code,
-            message=str(exc.detail),
+            message=ResponseMessageConstants.INTERNAL_SERVER_ERROR,
             data=None,
             error=str(exc.detail),
         )
@@ -73,7 +83,7 @@ def reset_password(payload: ResetPasswordPayload, db: Session = Depends(get_db))
         return generic_json_response(
             success=True,
             status_code=200,
-            message="Password reset successful.",
+            message=ResponseMessageConstants.PASSWORD_RESET_SUCCESSFULLY,
             data={
                 "email": user.hs_email_id,
                 "requires_password_reset": False,
@@ -84,7 +94,7 @@ def reset_password(payload: ResetPasswordPayload, db: Session = Depends(get_db))
         return generic_json_response(
             success=False,
             status_code=exc.status_code,
-            message=str(exc.detail),
+            message=ResponseMessageConstants.INTERNAL_SERVER_ERROR,
             data=None,
             error=str(exc.detail),
         )

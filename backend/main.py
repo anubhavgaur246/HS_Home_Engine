@@ -9,8 +9,8 @@ from shared.utils import generic_json_response
 
 
 app = FastAPI()
-app.include_router(data_upload_router, prefix="/data-upload", tags=["Data upload"])
-app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(data_upload_router, tags=["Data upload"])
+app.include_router(auth_router, tags=["Authentication"])
 
 
 @app.on_event("startup")

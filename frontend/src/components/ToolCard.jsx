@@ -2,8 +2,18 @@ import React from 'react';
 import { ArrowUpRight, CheckCircle2, ShieldCheck, BookOpen, Video } from 'lucide-react';
 import { ToolIconBadge } from './ToolIconBadge';
 
-export function ToolCard({ tool }) {
+export function ToolCard({ tool, user, onRequireLogin }) {
+  const requireLogin = (event) => {
+    if (!user) {
+      event?.preventDefault?.();
+      onRequireLogin?.();
+      return true;
+    }
+    return false;
+  };
+
   const openSolution = () => {
+    if (requireLogin()) return;
     window.open(tool.url, tool.openInNewTab ? '_blank' : '_self', tool.openInNewTab ? 'noopener,noreferrer' : undefined);
   };
 
@@ -81,7 +91,10 @@ export function ToolCard({ tool }) {
             rel="noopener noreferrer"
             className="card-manual-link"
             title={`Open ${tool.manualName || 'User Guide'}`}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (requireLogin(event)) return;
+            }}
           >
             <BookOpen size={13} aria-hidden="true" />
             <span>User Manual</span>
@@ -94,12 +107,31 @@ export function ToolCard({ tool }) {
         )}
 
         {tool.videoUrl && (
-          <a href={tool.videoUrl} target="_blank" rel="noopener noreferrer" className="card-video-link" onClick={(event) => event.stopPropagation()}>
+          <a
+            href={tool.videoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="card-video-link"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (requireLogin(event)) return;
+            }}
+          >
             <Video size={13} aria-hidden="true" />
             <span>Video Manual</span>
           </a>
         )}
-        <a href={tool.url} target={tool.openInNewTab ? '_blank' : '_self'} rel={tool.openInNewTab ? 'noopener noreferrer' : undefined} className="action-launch-btn" aria-label={`Launch ${tool.name}`} onClick={(event) => event.stopPropagation()}>
+        <a
+          href={tool.url}
+          target={tool.openInNewTab ? '_blank' : '_self'}
+          rel={tool.openInNewTab ? 'noopener noreferrer' : undefined}
+          className="action-launch-btn"
+          aria-label={`Launch ${tool.name}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (requireLogin(event)) return;
+          }}
+        >
           <ArrowUpRight size={14} aria-hidden="true" />
           <span>Launch</span>
         </a>

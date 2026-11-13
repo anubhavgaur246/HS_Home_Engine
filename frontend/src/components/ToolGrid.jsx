@@ -2,7 +2,7 @@ import React from 'react';
 import { ToolCard } from './ToolCard';
 import { RotateCcw } from 'lucide-react';
 
-export function ToolGrid({ tools, searchQuery, onResetSearch }) {
+export function ToolGrid({ tools, searchQuery, onResetSearch, user, onRequireLogin }) {
   const filteredTools = tools.filter((tool) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -43,7 +43,12 @@ export function ToolGrid({ tools, searchQuery, onResetSearch }) {
         {filteredTools.length > 0 ? (
           <div className="tools-grid-premium" role="list">
             {filteredTools.map((tool) => (
-              <ToolCard key={tool.id} tool={tool} />
+              <ToolCard
+                key={tool.id}
+                tool={tool}
+                user={user}
+                onRequireLogin={onRequireLogin}
+              />
             ))}
           </div>
         ) : (
