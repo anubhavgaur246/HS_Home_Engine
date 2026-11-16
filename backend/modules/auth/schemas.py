@@ -37,6 +37,12 @@ class UserUpdatePayload(BaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
     hs_email_id: str | None = Field(default=None, min_length=3, max_length=255)
+    level: str | None = Field(default=None, max_length=100)
+    team: str | None = Field(default=None, max_length=255)
+    programme_name: str | None = Field(default=None, max_length=255)
+    projectname: str | None = Field(default=None, max_length=255)
+    manager: str | None = Field(default=None, max_length=100)
+    lead: str | None = Field(default=None, max_length=100)
     role: RoleType | None = None
 
     @field_validator("first_name", "last_name")
@@ -60,5 +66,11 @@ class LoginResult(BaseModel):
     token_type: str = "bearer"
     email: str
     role: RoleType
+    level: str | None = None
+    team: str | None = None
+    programme_name: str | None = None
+    projectname: str | None = None
+    manager: str | None = None
+    lead: str | None = None
     requires_password_reset: bool = False
     reset_token: str | None = None

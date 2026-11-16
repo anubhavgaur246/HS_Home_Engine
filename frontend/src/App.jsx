@@ -114,7 +114,33 @@ export function App() {
       return 'light';
     }
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [pathname, setPathname] = useState(() => window.location.pathname);
+  const [adminSection, setAdminSection] = useState('all');
   const [user, setUser] = useState(loadUser);
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loginMessage, setLoginMessage] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [resetRequired, setResetRequired] = useState(false);
+  const [resetToken, setResetToken] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const navigate = (h) => {
+    const target = h.startsWith('#') ? h : `#${h}`;
+    if (window.location.hash === target) {
+      setRoute(decodeURIComponent(h.replace(/^#/, '')));
+      return;
+    }
+    window.location.hash = target;
+  };
+
   const [posts, setPosts] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('hs_posts') || '[]');
@@ -152,9 +178,28 @@ export function App() {
     }, action ? 6300 : 3100);
   };
 
-  const navigate = (h) => {
-    if (window.location.hash === '#' + h) setRoute(h);
-    else window.location.hash = h;
+  const setSessionUser = (result) => {
+    sessionStorage.setItem('hs-access-token', result.access_token);
+    sessionStorage.setItem('hs-user-email', result.email);
+    sessionStorage.setItem('hs-user-role', result.role || '');
+    sessionStorage.setItem('hs-user-level', result.level || '');
+    sessionStorage.setItem('hs-user-team', result.team || '');
+    sessionStorage.setItem('hs-user-programme-name', result.programme_name || '');
+    sessionStorage.setItem('hs-user-project-name', result.projectname || '');
+    sessionStorage.setItem('hs-user-manager', result.manager || '');
+    sessionStorage.setItem('hs-user-lead', result.lead || '');
+    setUser({
+      token: result.access_token,
+      email: result.email,
+      role: result.role || '',
+      level: result.level || '',
+      team: result.team || '',
+      programme_name: result.programme_name || '',
+      projectname: result.projectname || '',
+      manager: result.manager || '',
+      lead: result.lead || '',
+    });
+    navigate(result.role === 'SUPER_ADMIN' ? 'admin' : 'top');
   };
 
   const openModal = (id) => setModal(id);
@@ -318,6 +363,15 @@ export function App() {
   };
 
   const logout = () => {
+    sessionStorage.removeItem('hs-access-token');
+    sessionStorage.removeItem('hs-user-email');
+    sessionStorage.removeItem('hs-user-role');
+    sessionStorage.removeItem('hs-user-level');
+    sessionStorage.removeItem('hs-user-team');
+    sessionStorage.removeItem('hs-user-programme-name');
+    sessionStorage.removeItem('hs-user-project-name');
+    sessionStorage.removeItem('hs-user-manager');
+    sessionStorage.removeItem('hs-user-lead');
     setUser(null);
     try {
       sessionStorage.removeItem('hs_user');
