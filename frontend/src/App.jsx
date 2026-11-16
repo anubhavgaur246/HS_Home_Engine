@@ -20,7 +20,13 @@ export function App() {
     const token = sessionStorage.getItem('hs-access-token');
     const email = sessionStorage.getItem('hs-user-email');
     const role = sessionStorage.getItem('hs-user-role');
-    return token && email ? { token, email, role } : null;
+    const level = sessionStorage.getItem('hs-user-level');
+    const team = sessionStorage.getItem('hs-user-team');
+    const programmeName = sessionStorage.getItem('hs-user-programme-name');
+    const projectName = sessionStorage.getItem('hs-user-project-name');
+    const manager = sessionStorage.getItem('hs-user-manager');
+    const lead = sessionStorage.getItem('hs-user-lead');
+    return token && email ? { token, email, role, level, team, programme_name: programmeName, projectname: projectName, manager, lead } : null;
   });
   const [showLogin, setShowLogin] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
@@ -70,7 +76,23 @@ export function App() {
     sessionStorage.setItem('hs-access-token', result.access_token);
     sessionStorage.setItem('hs-user-email', result.email);
     sessionStorage.setItem('hs-user-role', result.role || '');
-    setUser({ token: result.access_token, email: result.email, role: result.role || '' });
+    sessionStorage.setItem('hs-user-level', result.level || '');
+    sessionStorage.setItem('hs-user-team', result.team || '');
+    sessionStorage.setItem('hs-user-programme-name', result.programme_name || '');
+    sessionStorage.setItem('hs-user-project-name', result.projectname || '');
+    sessionStorage.setItem('hs-user-manager', result.manager || '');
+    sessionStorage.setItem('hs-user-lead', result.lead || '');
+    setUser({
+      token: result.access_token,
+      email: result.email,
+      role: result.role || '',
+      level: result.level || '',
+      team: result.team || '',
+      programme_name: result.programme_name || '',
+      projectname: result.projectname || '',
+      manager: result.manager || '',
+      lead: result.lead || '',
+    });
     navigate(result.role === 'SUPER_ADMIN' ? '/admin' : '/');
   };
 
@@ -181,6 +203,12 @@ export function App() {
     sessionStorage.removeItem('hs-access-token');
     sessionStorage.removeItem('hs-user-email');
     sessionStorage.removeItem('hs-user-role');
+    sessionStorage.removeItem('hs-user-level');
+    sessionStorage.removeItem('hs-user-team');
+    sessionStorage.removeItem('hs-user-programme-name');
+    sessionStorage.removeItem('hs-user-project-name');
+    sessionStorage.removeItem('hs-user-manager');
+    sessionStorage.removeItem('hs-user-lead');
     setUser(null);
     navigate('/');
   };

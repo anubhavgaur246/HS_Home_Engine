@@ -26,6 +26,14 @@ class User(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=True)
 
+    level = Column(String(100), nullable=True)
+    team = Column(String(255), nullable=True)
+    programme_name = Column(String(255), nullable=True)
+    projectname = Column(String(255), nullable=True)
+    manager = Column(String(100), nullable=True)
+    lead = Column(String(100), nullable=True)
+    from_teamsphere = Column(Boolean, nullable=False, default=True, server_default="true")
+
     role = Column(
         Enum(RoleType, name="role_type"),
         nullable=False,
