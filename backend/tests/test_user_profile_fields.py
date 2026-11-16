@@ -1,7 +1,7 @@
 import unittest
 
-from modules.data_upload.models import User
 from modules.data_upload.schemas import EmployeeImport
+from modules.users.models import User
 
 
 class UserProfileFieldTests(unittest.TestCase):

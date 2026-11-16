@@ -2,8 +2,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core.security import hash_password
+from modules.users.models import User
 
-from .models import User
 from .schemas import EmployeeImport, EmployeeImportResult
 
 TEMPORARY_PASSWORD = "temporary_password"

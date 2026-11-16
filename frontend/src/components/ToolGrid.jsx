@@ -2,16 +2,19 @@ import React from 'react';
 import { ToolCard } from './ToolCard';
 import { RotateCcw } from 'lucide-react';
 
-export function ToolGrid({ tools, searchQuery, onResetSearch }) {
-  const filteredTools = tools.filter((tool) => {
+export function ToolGrid({ tools, searchQuery, onResetSearch, user, onRequireLogin }) {
+  const filteredTools = (tools || []).filter((tool) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
+    const name = String(tool?.name || '').toLowerCase();
+    const description = String(tool?.description || '').toLowerCase();
+    const category = String(tool?.category || '').toLowerCase();
+    const capabilities = Array.isArray(tool?.capabilities) ? tool.capabilities : [];
     return (
-      tool.name.toLowerCase().includes(q) ||
-      tool.purpose.toLowerCase().includes(q) ||
-      tool.description.toLowerCase().includes(q) ||
-      tool.category.toLowerCase().includes(q) ||
-      tool.capabilities?.some((cap) => cap.toLowerCase().includes(q))
+      name.includes(q) ||
+      description.includes(q) ||
+      category.includes(q) ||
+      capabilities.some((cap) => String(cap).toLowerCase().includes(q))
     );
   });
 
@@ -43,7 +46,12 @@ export function ToolGrid({ tools, searchQuery, onResetSearch }) {
         {filteredTools.length > 0 ? (
           <div className="tools-grid-premium" role="list">
             {filteredTools.map((tool) => (
-              <ToolCard key={tool.id} tool={tool} />
+              <ToolCard
+                key={tool.id}
+                tool={tool}
+                user={user}
+                onRequireLogin={onRequireLogin}
+              />
             ))}
           </div>
         ) : (

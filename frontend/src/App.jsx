@@ -6,7 +6,6 @@ import { ToolGrid } from './components/ToolGrid';
 import { Footer } from './components/Footer';
 import { HubAssistant } from './components/HubAssistant';
 import { UserManagement } from './components/UserManagement';
-import { TOOLS } from './config/tools';
 
 export function App() {
   const [theme, setTheme] = useState(() => {
@@ -40,6 +39,8 @@ export function App() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [tools, setTools] = useState([]);
+  const AUTH_API_BASE = '/api/auth';
 
   const navigate = (path, replace = false) => {
     if (window.location.pathname !== path) {
@@ -67,6 +68,45 @@ export function App() {
       navigate('/', true);
     }
   }, [pathname, user?.role]);
+
+  useEffect(() => {
+    const fetchTools = async () => {
+      try {
+        const response = await fetch('/api/tools');
+        const result = await response.json().catch(() => ({}));
+        const toolList = Array.isArray(result?.data?.tools) ? result.data.tools : [];
+        const normalizedTools = toolList.map((tool) => ({
+          id: tool.id,
+          name: tool.name,
+          description: tool.description || 'No description available.',
+          url: tool.link || '#',
+          manualUrl: tool.user_guide_url || '',
+          videoUrl: tool.video_url || '',
+          openInNewTab: true,
+          badge: 'Tool',
+          category: 'Database',
+          themeKey: 'cyan',
+          accent: {
+            primary: '#38BDF8',
+            secondary: '#0284C7',
+            glow: 'rgba(56, 189, 248, 0.22)',
+            border: 'rgba(56, 189, 248, 0.3)',
+            gradient: 'linear-gradient(135deg, #38BDF8 0%, #0284C7 100%)',
+          },
+          capabilities: [],
+          isNew: false,
+          newLabel: '',
+          iconType: 'tool',
+          status: tool.is_product_live ? 'Active System' : 'Available',
+        }));
+        setTools(normalizedTools);
+      } catch (error) {
+        setTools([]);
+      }
+    };
+
+    fetchTools();
+  }, []);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
@@ -119,7 +159,7 @@ export function App() {
     setLoginMessage('');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(`${AUTH_API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: loginPassword }),
@@ -168,7 +208,7 @@ export function App() {
     }
 
     try {
-      const resetResponse = await fetch('/api/auth/reset-password', {
+      const resetResponse = await fetch(`${AUTH_API_BASE}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: resetToken, new_password: newPassword }),
@@ -179,7 +219,7 @@ export function App() {
         throw new Error(resetResult?.detail || resetResult?.error || 'Unable to reset your password.');
       }
 
-      const loginResponse = await fetch('/api/auth/login', {
+      const loginResponse = await fetch(`${AUTH_API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: loginEmail, password: newPassword }),
@@ -249,7 +289,7 @@ export function App() {
           <>
             <Hero />
             <ToolGrid
-              tools={TOOLS}
+              tools={tools}
               searchQuery={searchQuery}
               onResetSearch={() => setSearchQuery('')}
             />

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from core.config import settings
 from core.security import hash_password, verify_password
-from modules.data_upload.models import User
+from modules.users.models import User
 from shared.enums import RoleType
 
 
