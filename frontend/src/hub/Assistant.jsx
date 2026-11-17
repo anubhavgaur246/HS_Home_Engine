@@ -88,32 +88,41 @@ export function Assistant({
     );
     if (q.includes('access') || q.includes('can i')) {
       return user
-        ? `As <b>${user.role}</b> you can open ${(Array.isArray(user.access) ? user.access : [])
-            .map((a) => `<button class="inline" data-go="${a}">${T[a]?.name}</button>`)
-            .join(', ')}. Locked tools have a Request access button.`
+        ? LIVE.length
+          ? `As <b>${user.role}</b> you can open ${LIVE.map(
+              (t) => `<button class="inline" data-go="${t.id}">${t.name}</button>`
+            ).join(', ')}.`
+          : 'No live tools are available yet.'
         : `Log in first and I’ll show your tools. <button class="inline" data-go="login">Log in</button>`;
     }
     if (q.includes('manual') || q.includes('guide') || q.includes('demo')) {
-      return (
-        'Every tool card has a Manual and a Tool demo button: ' +
-        LIVE.map(
-          (t) => `<a href="${t.manual}" target="_blank" rel="noopener">${t.name} manual</a>`
-        ).join(', ') +
-        '.'
+      const links = LIVE.filter((t) => t.manual).map(
+        (t) => `<a href="${t.manual}" target="_blank" rel="noopener">${t.name} manual</a>`
       );
+      return links.length
+        ? 'Tool manuals are available here: ' + links.join(', ') + '.'
+        : 'No tool manuals are available yet.';
     }
     if (q.includes('new') || q.includes('update')) {
-      return `The latest is “${esc(updates[0]?.title || '')}”. <button class="inline" data-go="news">See all updates</button>`;
+      return updates[0]
+        ? `The latest is “${esc(updates[0].title)}”. <button class="inline" data-go="news">See all updates</button>`
+        : 'No updates have been posted yet. <button class="inline" data-go="news">Open updates</button>';
     }
     if (q.includes('bug') || q.includes('broken') || q.includes('error')) {
       return `Sorry about that. <button class="inline" data-go="bug">Report a bug</button> and the product team will follow up.`;
     }
     if (tool) {
-      return tool.soon
-        ? `${tool.name} is coming soon. <button class="inline" data-go="${tool.id}">Turn on a launch alert</button>`
-        : `<b>${tool.name}</b> (${tool.sub}): ${tool.desc} <button class="inline" data-go="${tool.id}">Open ${tool.name}</button>`;
+      if (tool.soon) {
+        return `${tool.name} is coming soon. <button class="inline" data-go="${tool.id}">Turn on a launch alert</button>`;
+      }
+      if (tool.inactive) {
+        return `${tool.name} is currently inactive.`;
+      }
+      return `<b>${tool.name}</b> (${tool.sub}): ${tool.desc} <button class="inline" data-go="${tool.id}">Open ${tool.name}</button>`;
     }
-    return 'I can help with tools, manuals, access, updates and bugs. Try “What does HAT do?” or “Where’s the Staffing manual?”';
+    return TOOLS[0]
+      ? `I can help with tools, manuals, access, updates and bugs. Try “What does ${TOOLS[0].name} do?”`
+      : 'I can help with tools, manuals, access, updates and bugs.';
   };
 
   const ask = (q) => {

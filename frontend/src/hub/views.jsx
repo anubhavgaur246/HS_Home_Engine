@@ -47,7 +47,7 @@ export function Cover({ update, className = '' }) {
       {update.cover ? (
         <img src={update.cover} alt="" />
       ) : (
-        <Raw html={ILLO[update.tool] || ILLO.hub} />
+        <Raw html={ILLO[t.iconKey || update.tool] || ILLO.hub} />
       )}
     </div>
   );
@@ -74,13 +74,25 @@ export function ToolCard({
   index = 0,
 }) {
   const t = tool;
-  const access = !!user && Array.isArray(user.access) && user.access.includes(t.id);
+  const access = !!user && !t.soon && !t.inactive;
   const notifyOn = notify.has(t.id);
 
   let cls = '';
   let status;
   let primary;
-  if (t.soon) {
+  if (t.inactive) {
+    cls = 'inactive';
+    status = (
+      <span className="status muted">
+        <i></i>Inactive
+      </span>
+    );
+    primary = (
+      <button className="btn" disabled tabIndex={clone ? -1 : undefined}>
+        Unavailable
+      </button>
+    );
+  } else if (t.soon) {
     cls = 'soon';
     status = (
       <span className="status muted">
@@ -152,7 +164,7 @@ export function ToolCard({
     );
   }
 
-  const sec = t.soon ? (
+  const sec = t.soon || t.inactive ? (
     <>
       <button className="btn sm" disabled tabIndex={clone ? -1 : undefined}>
         <Raw html={DOC} />
@@ -212,7 +224,7 @@ export function ToolCard({
       }}
     >
       <div className="tc-cover">
-        <Raw html={ILLO[t.id] || ILLO.hub} />
+        <Raw html={ILLO[t.iconKey || t.id] || ILLO.hub} />
         <div className="tc-badges">
           {t.isNew ? (
             <span className="new-badge">
@@ -231,7 +243,7 @@ export function ToolCard({
       <div className="tc-body">
         <div className="tc-title">
           <span className="tc-mini">
-            <Raw html={ICONS[t.id]} />
+            <Raw html={ICONS[t.iconKey] || ICONS.hub} />
           </span>
           <div>
             <h3>{t.name}</h3>
@@ -425,12 +437,6 @@ export function HomeView({
   if (!user) {
     return (
       <div className="home-view">
-        <div className="aurora" aria-hidden="true">
-          <div className="grid-bg"></div>
-          <i></i>
-          <i></i>
-          <i></i>
-        </div>
         <section className="glance" id="tools">
           <div className="wrap glance-head">
             <div>
@@ -442,7 +448,32 @@ export function HomeView({
                 Connecting people, processes and technology across Highspring.
               </p>
             </div>
-            <div className="glance-chips">
+          </div>
+          <div
+            style={{
+              padding: '20px 40px 0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              flexWrap: 'wrap',
+            }}
+          >
+            <h2
+              style={{
+                fontFamily: 'var(--display)',
+                fontSize: 'clamp(22px,2.4vw,28px)',
+                fontWeight: 700,
+                margin: 0,
+                background: 'var(--primary-bg)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent',
+              }}
+            >
+              Our tools
+            </h2>
+            <div style={{ display: 'flex', gap: 8 }}>
               <span className="g-chip ok">
                 <b>{LIVE.length}</b>Live tools
               </span>
@@ -450,22 +481,6 @@ export function HomeView({
                 <b>{TOOLS.length - LIVE.length}</b>Coming soon
               </span>
             </div>
-          </div>
-          <div style={{ padding: '28px 40px 0' }}>
-            <h2
-              style={{
-                fontFamily: 'var(--display)',
-                fontSize: 'clamp(26px,3vw,34px)',
-                fontWeight: 700,
-                background: 'var(--primary-bg)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-                display: 'inline-block',
-              }}
-            >
-              Our tools
-            </h2>
           </div>
           <div className="car-wrap">
             <button
@@ -551,14 +566,14 @@ export function HomeView({
     );
   }
 
-  const userAccess = Array.isArray(user.access) ? user.access : [];
-  const ready = userAccess.length;
-  const locked = LIVE.length - ready;
+  const ready = TOOLS.filter((t) => !t.soon && !t.inactive).length;
+  const locked = 0;
   const monthUps = updates.filter((u) => u.date.slice(0, 7) === iso(now).slice(0, 7)).length;
   const buckets = {
-    ready: TOOLS.filter((t) => !t.soon && userAccess.includes(t.id)),
-    locked: TOOLS.filter((t) => !t.soon && !userAccess.includes(t.id)),
+    ready: TOOLS.filter((t) => !t.soon && !t.inactive),
+    locked: [],
     soon: TOOLS.filter((t) => t.soon),
+    inactive: TOOLS.filter((t) => t.inactive),
   };
   const list = buckets[toolTab] || [];
   const greeting = () => {
@@ -641,6 +656,14 @@ export function HomeView({
                 onClick={() => setToolTab('soon')}
               >
                 Coming soon<b>{buckets.soon.length}</b>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={toolTab === 'inactive'}
+                onClick={() => setToolTab('inactive')}
+              >
+                Inactive<b>{buckets.inactive.length}</b>
               </button>
             </div>
           </div>

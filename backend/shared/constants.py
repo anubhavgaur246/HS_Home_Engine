@@ -9,6 +9,7 @@ class ResponseMessageConstants:
     USER_UPDATED = "User updated."
     USER_DELETED = "User deleted."
     TOOL_CREATED = "Tool created successfully."
+    TOOL_UPDATED = "Tool updated."
     TOOLS_RETRIEVED = "Tools retrieved."
     EMPLOYEE_DATA_IMPORTED = "Employee data imported successfully."
     JSON_FILE_REQUIRED = "JSON file is required."
