@@ -1,32 +1,124 @@
-import React, { useState, useEffect } from 'react';
-import { X, LockKeyhole, LogOut, Eye, EyeOff } from 'lucide-react';
-import { Header } from './components/Header';
-import { Hero } from './components/Hero';
-import { ToolGrid } from './components/ToolGrid';
-import { Footer } from './components/Footer';
-import { HubAssistant } from './components/HubAssistant';
-import { UserManagement } from './components/UserManagement';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { SiteHeader, NewsBar, SiteFooter, Toasts } from './hub/parts';
+import { HomeView, NewsPage, ArticlePage } from './hub/views';
+import {
+  LoginModal,
+  DemoModal,
+  PostModal,
+  BugModal,
+  NoAccessModal,
+} from './hub/modals';
+import { Assistant } from './hub/Assistant';
+import {
+  BUG,
+  CHAT,
+  DOC,
+  ICONS,
+  MEGA,
+  MOON,
+  NEWS,
+  PLAY,
+  SW,
+} from './hub/icons';
+import {
+  DEMO_USER,
+  HUB,
+  LIVE,
+  T,
+  TOOLS,
+  allUpdates,
+  emailOk,
+  first,
+  fmt,
+  iso,
+} from './hub/data';
+
+const reduce =
+  typeof window !== 'undefined' &&
+  window.matchMedia &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const ROLE_LABEL = {
+  SUPER_ADMIN: 'Super admin',
+  ADMIN: 'Admin',
+  MANAGER: 'Manager',
+  LEAD: 'Lead',
+  CO_LEAD: 'Co-lead',
+  HR: 'HR',
+  TA: 'TA',
+  USER: 'Employee',
+};
+
+const prettifyName = (email = '') =>
+  email
+    .split('@')[0]
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+const mapBackendUser = (data) => {
+  const email = data.email || '';
+  const rawRole = data.role || 'USER';
+  const canPost = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD', 'CO_LEAD'].includes(rawRole);
+  return {
+    email,
+    name: prettifyName(email),
+    role: ROLE_LABEL[rawRole] || rawRole,
+    rawRole,
+    canPost,
+    access: LIVE.map((t) => t.id),
+    token: data.access_token,
+  };
+};
+
+const loadUser = () => {
+  try {
+    const raw = sessionStorage.getItem('hs_user');
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u && u.email) {
+        const fallbackAccess = LIVE.map((t) => t.id);
+        const merged = {
+          name: prettifyName(u.email),
+          role: u.role || 'Employee',
+          canPost: !!u.canPost,
+          access: fallbackAccess,
+          ...u,
+        };
+        if (!Array.isArray(merged.access)) merged.access = fallbackAccess;
+        return merged;
+      }
+    }
+  } catch (e) {
+    /* noop */
+  }
+  try {
+    const token = sessionStorage.getItem('hs-access-token');
+    const email = sessionStorage.getItem('hs-user-email');
+    if (token && email) {
+      return mapBackendUser({ access_token: token, email, role: sessionStorage.getItem('hs-user-role') });
+    }
+  } catch (e) {
+    /* noop */
+  }
+  return null;
+};
 
 export function App() {
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('highspring-theme') || 'dark';
+    try {
+      return (
+        localStorage.getItem('hs_theme') ||
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      );
+    } catch (e) {
+      return 'light';
+    }
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [pathname, setPathname] = useState(() => window.location.pathname);
   const [adminSection, setAdminSection] = useState('all');
-  const [user, setUser] = useState(() => {
-    const token = sessionStorage.getItem('hs-access-token');
-    const email = sessionStorage.getItem('hs-user-email');
-    const role = sessionStorage.getItem('hs-user-role');
-    const level = sessionStorage.getItem('hs-user-level');
-    const team = sessionStorage.getItem('hs-user-team');
-    const programmeName = sessionStorage.getItem('hs-user-programme-name');
-    const projectName = sessionStorage.getItem('hs-user-project-name');
-    const manager = sessionStorage.getItem('hs-user-manager');
-    const lead = sessionStorage.getItem('hs-user-lead');
-    return token && email ? { token, email, role, level, team, programme_name: programmeName, projectname: projectName, manager, lead } : null;
-  });
+  const [user, setUser] = useState(loadUser);
   const [showLogin, setShowLogin] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -42,74 +134,50 @@ export function App() {
   const [tools, setTools] = useState([]);
   const AUTH_API_BASE = '/api/auth';
 
-  const navigate = (path, replace = false) => {
-    if (window.location.pathname !== path) {
-      window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
+  const navigate = (h) => {
+    const target = h.startsWith('#') ? h : `#${h}`;
+    if (window.location.hash === target) {
+      setRoute(decodeURIComponent(h.replace(/^#/, '')));
+      return;
     }
-    setPathname(path);
+    window.location.hash = target;
   };
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('highspring-theme', theme);
-  }, [theme]);
-
-  useEffect(() => {
-    const handlePopState = () => setPathname(window.location.pathname);
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  useEffect(() => {
-    const isAdminPath = pathname === '/admin' || pathname === '/admin/users';
-    if (user?.role === 'SUPER_ADMIN' && !isAdminPath) {
-      navigate('/admin', true);
-    } else if (pathname.startsWith('/admin') && user?.role !== 'SUPER_ADMIN') {
-      navigate('/', true);
+  const [posts, setPosts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('hs_posts') || '[]');
+    } catch (e) {
+      return [];
     }
-  }, [pathname, user?.role]);
+  });
+  const [notify, setNotify] = useState(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('hs_notify') || '[]'));
+    } catch (e) {
+      return new Set();
+    }
+  });
+  const [route, setRoute] = useState(() => decodeURIComponent(window.location.hash.slice(1)));
+  const [query, setQuery] = useState('');
+  const [modal, setModal] = useState(null);
+  const [pendingTool, setPendingTool] = useState(null);
+  const [naTool, setNaTool] = useState(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantAsk, setAssistantAsk] = useState(null);
+  const [toolTab, setToolTab] = useState('ready');
+  const [filters, setFilters] = useState({ tool: 'all', from: '', to: '' });
+  const [docURLs, setDocURLs] = useState({});
+  const [toasts, setToasts] = useState([]);
 
-  useEffect(() => {
-    const fetchTools = async () => {
-      try {
-        const response = await fetch('/api/tools');
-        const result = await response.json().catch(() => ({}));
-        const toolList = Array.isArray(result?.data?.tools) ? result.data.tools : [];
-        const normalizedTools = toolList.map((tool) => ({
-          id: tool.id,
-          name: tool.name,
-          description: tool.description || 'No description available.',
-          url: tool.link || '#',
-          manualUrl: tool.user_guide_url || '',
-          videoUrl: tool.video_url || '',
-          openInNewTab: true,
-          badge: 'Tool',
-          category: 'Database',
-          themeKey: 'cyan',
-          accent: {
-            primary: '#38BDF8',
-            secondary: '#0284C7',
-            glow: 'rgba(56, 189, 248, 0.22)',
-            border: 'rgba(56, 189, 248, 0.3)',
-            gradient: 'linear-gradient(135deg, #38BDF8 0%, #0284C7 100%)',
-          },
-          capabilities: [],
-          isNew: false,
-          newLabel: '',
-          iconType: 'tool',
-          status: tool.is_product_live ? 'Active System' : 'Available',
-        }));
-        setTools(normalizedTools);
-      } catch (error) {
-        setTools([]);
-      }
-    };
-
-    fetchTools();
-  }, []);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  const toast = (msg, action) => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((t) => [...t, { id, msg, action }]);
+    setTimeout(() => {
+      setToasts((t) => t.map((x) => (x.id === id ? { ...x, out: true } : x)));
+    }, action ? 6000 : 2800);
+    setTimeout(() => {
+      setToasts((t) => t.filter((x) => x.id !== id));
+    }, action ? 6300 : 3100);
   };
 
   const setSessionUser = (result) => {
@@ -133,109 +201,166 @@ export function App() {
       manager: result.manager || '',
       lead: result.lead || '',
     });
-    navigate(result.role === 'SUPER_ADMIN' ? '/admin' : '/');
+    navigate(result.role === 'SUPER_ADMIN' ? 'admin' : 'top');
   };
 
-  const resetLoginForm = () => {
-    setShowLogin(false);
-    setLoginEmail('');
-    setLoginPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    setLoginMessage('');
-    setResetRequired(false);
-    setResetToken('');
-    setShowLoginPassword(false);
-    setShowNewPassword(false);
-    setShowConfirmPassword(false);
+  const openModal = (id) => setModal(id);
+  const closeModal = () => setModal(null);
+
+  const openLogin = (toolId) => {
+    setPendingTool(toolId || null);
+    setModal('login');
   };
 
-  const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword;
-  const passwordsMismatch = confirmPassword && newPassword !== confirmPassword;
+  const updates = useMemo(() => allUpdates(posts), [posts]);
 
-  const submitLogin = async (event) => {
-    event.preventDefault();
-    setLoginLoading(true);
-    setLoginMessage('');
+  const toggleNotifyFor = (u, id) => {
+    if (!u) {
+      openLogin(id);
+      return;
+    }
+    const next = new Set(notify);
+    const on = !next.has(id);
+    if (on) next.add(id);
+    else next.delete(id);
+    setNotify(next);
+    toast(
+      on
+        ? `We’ll email ${u.email} when ${T[id].name} launches`
+        : `${T[id].name} launch alert turned off`
+    );
+  };
 
+  const tryOpenFor = (u, id) => {
+    const t = T[id];
+    if (!t || id === 'hub') return;
+    if (t.soon) {
+      toggleNotifyFor(u, id);
+      return;
+    }
+    if (!u) {
+      openLogin(id);
+      return;
+    }
+    if (!Array.isArray(u.access) || !u.access.includes(id)) {
+      setNaTool(id);
+      setModal('noAccess');
+      return;
+    }
+    window.open(t.url, '_blank', 'noopener');
+    toast(`Opening ${t.name} in a new tab`);
+  };
+
+  const tryOpen = (id) => tryOpenFor(user, id);
+  const toggleNotify = (id) => toggleNotifyFor(user, id);
+
+  const finishLogin = (u, p) => {
+    navigate('top');
+    if (p) {
+      const t = T[p];
+      if (t.soon) {
+        toggleNotifyFor(u, p);
+      } else if (Array.isArray(u.access) && u.access.includes(p)) {
+        toast(`Logged in. ${t.name} is ready.`, {
+          label: `Open ${t.name}`,
+          href: t.url,
+        });
+      } else {
+        toast(`Logged in as ${u.name}`);
+        setTimeout(() => tryOpenFor(u, p), 300);
+      }
+    } else {
+      toast(`Logged in as ${u.name}`);
+    }
+  };
+
+  const handleLogin = async (email, password) => {
+    if (email === DEMO_USER.email && password === DEMO_USER.pass) {
+      const u = { ...DEMO_USER };
+      setUser(u);
+      const p = pendingTool;
+      setPendingTool(null);
+      return { ok: true, afterLogin: () => finishLogin(u, p) };
+    }
     try {
       const response = await fetch(`${AUTH_API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        body: JSON.stringify({ email, password }),
       });
-
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(result?.detail || result?.error || 'Unable to sign in.');
-      }
-
       const data = result?.data || {};
       if (data.requires_password_reset) {
-        setResetRequired(true);
-        setResetToken(data.reset_token || '');
-        setLoginPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        setLoginMessage('Your password needs to be reset. Please choose a new password and confirm it to continue.');
-        return;
+        return {
+          requiresReset: true,
+          resetToken: data.reset_token || '',
+          message:
+            result?.message ||
+            'Your password needs to be reset. Please choose a new password and confirm it to continue.',
+        };
       }
-
-      setSessionUser(data);
-      resetLoginForm();
-    } catch (error) {
-      setLoginMessage(error.message || 'Unable to sign in.');
-    } finally {
-      setLoginLoading(false);
+      if (!response.ok || result?.success === false || !data.access_token) {
+        return {
+          ok: false,
+          error:
+            result?.detail ||
+            result?.error ||
+            result?.message ||
+            'Email or password is incorrect.',
+        };
+      }
+      const u = mapBackendUser(data);
+      setUser(u);
+      const p = pendingTool;
+      setPendingTool(null);
+      return { ok: true, afterLogin: () => finishLogin(u, p) };
+    } catch (e) {
+      return { ok: false, error: 'Unable to sign in. Please check your connection and try again.' };
     }
   };
 
-  const submitResetPassword = async (event) => {
-    event.preventDefault();
-    setLoginLoading(true);
-    setLoginMessage('');
-
-    if (!newPassword || !confirmPassword) {
-      setLoginMessage('Both password fields are required.');
-      setLoginLoading(false);
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setLoginMessage('The new password and confirm password do not match.');
-      setLoginLoading(false);
-      return;
-    }
-
+  const handleResetPassword = async (token, newPassword, email) => {
     try {
       const resetResponse = await fetch(`${AUTH_API_BASE}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: resetToken, new_password: newPassword }),
+        body: JSON.stringify({ token, new_password: newPassword }),
       });
-
       const resetResult = await resetResponse.json().catch(() => ({}));
-      if (!resetResponse.ok) {
-        throw new Error(resetResult?.detail || resetResult?.error || 'Unable to reset your password.');
+      if (!resetResponse.ok || resetResult?.success === false) {
+        return {
+          ok: false,
+          error:
+            resetResult?.detail ||
+            resetResult?.error ||
+            resetResult?.message ||
+            'Unable to reset your password.',
+        };
       }
-
-      const loginResponse = await fetch(`${AUTH_API_BASE}/login`, {
+      const loginResponse = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: newPassword }),
+        body: JSON.stringify({ email, password: newPassword }),
       });
-
       const loginResult = await loginResponse.json().catch(() => ({}));
-      if (!loginResponse.ok) {
-        throw new Error(loginResult?.detail || loginResult?.error || 'Login failed after password reset.');
+      const data = loginResult?.data || {};
+      if (!loginResponse.ok || !data.access_token) {
+        return {
+          ok: false,
+          error:
+            loginResult?.detail ||
+            loginResult?.error ||
+            loginResult?.message ||
+            'Login failed after password reset.',
+        };
       }
-
-      setSessionUser(loginResult.data || {});
-      resetLoginForm();
-    } catch (error) {
-      setLoginMessage(error.message || 'Unable to reset password.');
-    } finally {
-      setLoginLoading(false);
+      const u = mapBackendUser(data);
+      setUser(u);
+      const p = pendingTool;
+      setPendingTool(null);
+      return { ok: true, afterLogin: () => finishLogin(u, p) };
+    } catch (e) {
+      return { ok: false, error: 'Unable to reset your password. Please try again.' };
     }
   };
 
@@ -250,160 +375,400 @@ export function App() {
     sessionStorage.removeItem('hs-user-manager');
     sessionStorage.removeItem('hs-user-lead');
     setUser(null);
-    navigate('/');
+    try {
+      sessionStorage.removeItem('hs_user');
+      sessionStorage.removeItem('hs-access-token');
+      sessionStorage.removeItem('hs-user-email');
+      sessionStorage.removeItem('hs-user-role');
+    } catch (e) {
+      /* noop */
+    }
+    navigate('top');
+    toast('Logged out');
   };
 
-  return (
-    <div className="app-canvas">
-      <div className="ambient-backdrop-refined" aria-hidden="true">
-        <div className="subtle-precision-grid" />
-        <div className="ambient-top-glow" />
-        <div className="ambient-bottom-glow" />
-      </div>
+  const openPost = () => {
+    if (!user || !user.canPost) {
+      toast('Only managers and leads can post updates');
+      return;
+    }
+    setModal('post');
+  };
 
-      <Header
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        onOpenAssistant={() => setIsAssistantOpen(true)}
-        onUserManagementSelect={(section) => {
-          setAdminSection(section);
-          navigate('/admin/users');
-        }}
-        onGoHome={() => navigate(user?.role === 'SUPER_ADMIN' ? '/admin' : '/')}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
+  const publish = (post, docFile) => {
+    const next = [post, ...posts];
+    setPosts(next);
+    if (docFile) {
+      const url = URL.createObjectURL(docFile);
+      setDocURLs((d) => ({ ...d, [post.id]: url }));
+    }
+    let ok = true;
+    try {
+      localStorage.setItem('hs_posts', JSON.stringify(next));
+    } catch (e) {
+      ok = false;
+      const fallback = next.map((p) => (p.id === post.id ? { ...p, cover: null } : p));
+      try {
+        localStorage.setItem('hs_posts', JSON.stringify(fallback));
+        setPosts(fallback);
+      } catch (e2) {
+        /* noop */
+      }
+    }
+    navigate('update-' + post.id);
+    toast(
+      ok
+        ? 'Update published to What’s new'
+        : 'Published. The cover image is too large to keep after a reload.'
+    );
+  };
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem('hs_theme', theme);
+    } catch (e) {
+      /* noop */
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    try {
+      if (user) {
+        sessionStorage.setItem('hs_user', JSON.stringify(user));
+        sessionStorage.setItem('hs-access-token', user.token || '');
+        sessionStorage.setItem('hs-user-email', user.email || '');
+        sessionStorage.setItem('hs-user-role', user.rawRole || '');
+      } else {
+        sessionStorage.removeItem('hs_user');
+        sessionStorage.removeItem('hs-access-token');
+        sessionStorage.removeItem('hs-user-email');
+        sessionStorage.removeItem('hs-user-role');
+      }
+    } catch (e) {
+      /* noop */
+    }
+  }, [user]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hs_posts', JSON.stringify(posts));
+    } catch (e) {
+      /* noop */
+    }
+  }, [posts]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hs_notify', JSON.stringify([...notify]));
+    } catch (e) {
+      /* noop */
+    }
+  }, [notify]);
+
+  useEffect(() => {
+    const onHash = () => setRoute(decodeURIComponent(window.location.hash.slice(1)));
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  useEffect(() => {
+    const isHome = !route || route === 'top';
+    document.documentElement.classList.toggle('onepage', isHome && !user);
+    if (!isHome) window.scrollTo(0, 0);
+  }, [route, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const access = user.access || [];
+    const hasReady = TOOLS.some((t) => !t.soon && access.includes(t.id));
+    setToolTab(hasReady ? 'ready' : LIVE.length ? 'locked' : 'soon');
+  }, [user, route]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setModal(null);
+        setAssistantOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    if (reduce) return;
+    const handler = (e) => {
+      const b = e.target.closest(
+        '.btn,.chip-toggle,.sug,.quick button,.w-act,.fchip-btn,.slot'
+      );
+      if (!b) return;
+      const r = b.getBoundingClientRect();
+      const s = Math.max(r.width, r.height) * 2;
+      const sp = document.createElement('span');
+      sp.className = 'ripple';
+      sp.style.cssText = `width:${s}px;height:${s}px;left:${e.clientX - r.left - s / 2}px;top:${
+        e.clientY - r.top - s / 2
+      }px`;
+      b.appendChild(sp);
+      setTimeout(() => sp.remove(), 600);
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, []);
+
+  const askAssistant = (q) => {
+    setAssistantOpen(true);
+    setAssistantAsk({ q, id: Date.now() });
+  };
+
+  const searchIndex = useMemo(() => {
+    const I = [];
+    TOOLS.forEach((t) => {
+      I.push({
+        g: 'Tools',
+        title: t.name,
+        sub: t.soon
+          ? 'Coming soon'
+          : `${t.sub}${
+              user && (!Array.isArray(user.access) || !user.access.includes(t.id))
+                ? ' (no access)'
+                : ''
+            }`,
+        ac: t.accent,
+        ic: ICONS[t.id],
+        k: `${t.desc} ${t.features.join(' ')}`,
+        run: () => tryOpen(t.id),
+      });
+      if (!t.soon) {
+        I.push({
+          g: 'Manuals and demos',
+          title: `${t.name} manual`,
+          sub: 'User manual',
+          ac: t.accent,
+          ic: SW(DOC),
+          k: 'manual guide help docs',
+          run: () => {
+            window.open(t.manual, '_blank', 'noopener');
+            toast(`Opening ${t.name} manual in a new tab`);
+          },
+        });
+        I.push({
+          g: 'Manuals and demos',
+          title: `${t.name} demo`,
+          sub: 'Try the tool demo',
+          ac: t.accent,
+          ic: SW(PLAY),
+          k: 'demo try sandbox video',
+          run: () => {
+            window.open(t.demo, '_blank', 'noopener');
+            toast(`Opening ${t.name} demo in a new tab`);
+          },
+        });
+      }
+      t.features.forEach((f) =>
+        I.push({
+          g: 'Features',
+          title: f,
+          sub: `In ${t.name}`,
+          ac: t.accent,
+          ic: ICONS[t.id],
+          k: t.name,
+          run: () => tryOpen(t.id),
+        })
+      );
+    });
+    updates.forEach((u) => {
+      const t = T[u.tool] || HUB;
+      I.push({
+        g: 'Updates',
+        title: u.title,
+        sub: `${t.name}, ${fmt(u.date)}`,
+        ac: t.accent,
+        ic: SW(NEWS),
+        k: `${u.summary} ${u.type} update release`,
+        run: () => navigate('update-' + u.id),
+      });
+    });
+    const A = [
+      [
+        'What’s new',
+        'All launches and updates',
+        NEWS,
+        'whats new updates history changelog',
+        () => navigate('whats-new'),
+      ],
+      ['Report a bug', 'Tell the product team', BUG, 'bug issue problem broken report', () => setModal('bug')],
+      [
+        'Switch theme',
+        'Light or dark',
+        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${MOON}</svg>`,
+        'dark light theme mode',
+        () => setTheme((t) => (t === 'dark' ? 'light' : 'dark')),
+      ],
+      [
+        'Ask the hub assistant',
+        'Questions about tools and access',
+        CHAT,
+        'help assistant support question',
+        () => setAssistantOpen(true),
+      ],
+    ];
+    if (!user) {
+      A.unshift([
+        'Book a demo',
+        'Pick a date and time',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/></svg>',
+        'demo walkthrough book schedule',
+        () => setModal('demo'),
+      ]);
+      A.unshift([
+        'Log in',
+        'One login for every tool',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>',
+        'login sign in',
+        () => openLogin(),
+      ]);
+    }
+    if (user && user.canPost) {
+      A.unshift(['Post an update', 'Feature launch or change', MEGA, 'post publish feature launch announce update', () => setModal('post')]);
+    }
+    A.forEach((a) =>
+      I.push({ g: 'Actions', title: a[0], sub: a[1], ac: '#1C5BDB', ic: SW(a[2]), k: a[3], run: a[4] })
+    );
+    return I;
+  }, [user, posts, notify]);
+
+  const isNews = route === 'whats-new';
+  const articleId = route.startsWith('update-') ? route.slice(7) : null;
+  const article = articleId ? updates.find((u) => u.id === articleId) : null;
+
+  return (
+    <>
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+        <defs>
+          <symbol id="hsMark" viewBox="0 0 45 45">
+            <g
+              fill="none"
+              stroke="#2DBFF9"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="2" y="2" width="13.5" height="13" rx="4.5" />
+              <path d="M6 15H29" />
+              <path d="M29 15V6.5A4.5 4.5 0 0 1 33.5 2H38A4.5 4.5 0 0 1 42.5 6.5V38A4.5 4.5 0 0 1 38 42.5H33.5A4.5 4.5 0 0 1 29 38V29.5" />
+              <path d="M15.5 20.5V29.5" />
+              <path d="M6 29.5H29" />
+              <rect x="2" y="29.5" width="13.5" height="13" rx="4.5" />
+            </g>
+          </symbol>
+        </defs>
+      </svg>
+
+      <SiteHeader
         user={user}
-        onLogin={() => setShowLogin(true)}
+        theme={theme}
+        onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        onLogin={() => openLogin()}
         onLogout={logout}
+        onBug={() => setModal('bug')}
+        onDemo={() => setModal('demo')}
+        onPost={openPost}
+        onNews={() => navigate('whats-new')}
+        query={query}
+        setQuery={setQuery}
+        searchIndex={searchIndex}
+        onAsk={askAssistant}
       />
 
-      <main id="main-content" className="main-content-flow">
-        {pathname === '/admin/users' && user?.role === 'SUPER_ADMIN' ? (
-          <UserManagement
-            user={user}
-            section={adminSection}
-            onSectionChange={setAdminSection}
-            onGoHome={() => navigate('/admin')}
-          />
-        ) : (
-          <>
-            <Hero />
-            <ToolGrid
-              tools={tools}
-              searchQuery={searchQuery}
-              onResetSearch={() => setSearchQuery('')}
+      <NewsBar updates={updates} onOpenNews={() => navigate('whats-new')} />
+
+      <main id="top">
+        <div id="view">
+          {isNews ? (
+            <NewsPage
+              updates={updates}
+              user={user}
+              filters={filters}
+              setFilters={setFilters}
+              onPost={openPost}
+              onNavigate={navigate}
             />
-          </>
-        )}
+          ) : articleId ? (
+            <ArticlePage
+              update={article}
+              updates={updates}
+              docURLs={docURLs}
+              onOpenTool={tryOpen}
+              onMissingDoc={() =>
+                toast('This prototype keeps attachments only until the page reloads')
+              }
+            />
+          ) : (
+            <HomeView
+              key={user ? 'auth' : 'anon'}
+              user={user}
+              updates={updates}
+              notify={notify}
+              onOpen={tryOpen}
+              onNotify={toggleNotify}
+              onRes={(label) => toast(`Opening ${label} in a new tab`)}
+              onLaunch={(id) => toast(`Opening ${T[id].name} in a new tab`)}
+              onPost={openPost}
+              onAsk={askAssistant}
+              toolTab={toolTab}
+              setToolTab={setToolTab}
+              onNavigate={navigate}
+            />
+          )}
+        </div>
       </main>
 
-      <Footer />
+      <SiteFooter />
 
-      {showLogin && (
-        <div className="login-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) resetLoginForm(); }}>
-          <section className="login-card" role="dialog" aria-modal="true" aria-labelledby="login-title">
-            <button className="login-close" type="button" onClick={resetLoginForm} aria-label="Close login"><X size={19} /></button>
-            <span className="login-icon"><LockKeyhole size={22} /></span>
-            <p className="data-upload-eyebrow">SECURE ACCESS</p>
-            <h2 id="login-title">{resetRequired ? 'Reset your password' : 'Welcome back'}</h2>
-            {!resetRequired && <p className="login-intro">Sign in to access the tools dashboard.</p>}
-
-            {resetRequired ? (
-              <form className="login-form" onSubmit={submitResetPassword}>
-                <label>
-                  New password
-                  <div className="password-input-wrap">
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      required
-                      value={newPassword}
-                      onChange={(event) => setNewPassword(event.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="password-toggle-btn"
-                      aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                      onClick={() => setShowNewPassword((value) => !value)}
-                    >
-                      {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </label>
-                <label>
-                  Confirm new password
-                  <div className="password-input-wrap">
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      required
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="password-toggle-btn"
-                      aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                      onClick={() => setShowConfirmPassword((value) => !value)}
-                    >
-                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </label>
-
-                {confirmPassword && (
-                  <p className={passwordsMatch ? 'password-match-status success' : 'password-match-status error'} role="status">
-                    {passwordsMatch ? 'Passwords match.' : 'Passwords do not match.'}
-                  </p>
-                )}
-
-                {loginMessage && <p className="login-error" role="alert">{loginMessage}</p>}
-                <button className="upload-submit-button login-submit" disabled={loginLoading}>
-                  {loginLoading ? 'Resetting…' : 'Set new password'}
-                </button>
-              </form>
-            ) : (
-              <form className="login-form" onSubmit={submitLogin}>
-                <label>
-                  Email address
-                  <input type="email" autoComplete="username" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} />
-                </label>
-                <label>
-                  Password
-                  <div className="password-input-wrap">
-                    <input
-                      type={showLoginPassword ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      required
-                      value={loginPassword}
-                      onChange={(event) => setLoginPassword(event.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="password-toggle-btn"
-                      aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
-                      onClick={() => setShowLoginPassword((value) => !value)}
-                    >
-                      {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </label>
-                {loginMessage && <p className="login-error" role="alert">{loginMessage}</p>}
-                <button className="upload-submit-button login-submit" disabled={loginLoading}>
-                  {loginLoading ? 'Signing in…' : 'Sign in'}
-                </button>
-              </form>
-            )}
-          </section>
-        </div>
-      )}
-
-      <HubAssistant
-        isOpen={isAssistantOpen}
-        onClose={() => setIsAssistantOpen(false)}
-        onOpen={() => setIsAssistantOpen(true)}
+      <LoginModal
+        open={modal === 'login'}
+        onClose={closeModal}
+        pendingTool={pendingTool}
+        onLogin={handleLogin}
+        onResetPassword={handleResetPassword}
+        onForgot={() => toast('A reset link would go to your work email')}
       />
-    </div>
+      <DemoModal open={modal === 'demo'} onClose={closeModal} onBooked={() => toast('Demo booked')} />
+      <PostModal open={modal === 'post'} onClose={closeModal} user={user} onPublish={publish} />
+      <BugModal
+        open={modal === 'bug'}
+        onClose={closeModal}
+        user={user}
+        onReport={(tid) => toast(`Bug ${tid} reported`)}
+      />
+      <NoAccessModal
+        open={modal === 'noAccess'}
+        onClose={closeModal}
+        tool={naTool ? T[naTool] : null}
+        user={user}
+        onRequest={() => {
+          closeModal();
+          toast(`Access request sent for ${T[naTool].name}`);
+        }}
+      />
+      <Assistant
+        open={assistantOpen}
+        onOpen={() => setAssistantOpen(true)}
+        onClose={() => setAssistantOpen(false)}
+        user={user}
+        updates={updates}
+        onNavigate={navigate}
+        onBug={() => setModal('bug')}
+        onLogin={() => openLogin()}
+        onOpenTool={tryOpen}
+        askRequest={assistantAsk}
+        onAskConsumed={() => setAssistantAsk(null)}
+      />
+
+      <Toasts items={toasts} />
+    </>
   );
 }
 
