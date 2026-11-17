@@ -13,7 +13,6 @@ import {
 } from './icons';
 import { ILLO } from './illustrations';
 import {
-  DEMO_USER,
   HUB,
   LIVE,
   SLOTS,
@@ -122,8 +121,6 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
   const [pass, setPass] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [caps, setCaps] = useState(false);
-  const [suggest, setSuggest] = useState(false);
-  const [suggestTop, setSuggestTop] = useState(66);
   const [error, setError] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [invalidField, setInvalidField] = useState('');
@@ -157,29 +154,8 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
     }
   }, [open]);
 
-  const typeInto = async (setter, text, speed) => {
-    if (reduce) {
-      setter(text);
-      return;
-    }
-    setter('');
-    for (const ch of text) {
-      setter((prev) => prev + ch);
-      await sleep(speed);
-    }
-  };
-
-  const fillDemo = async () => {
-    setSuggest(false);
-    setInvalidField('');
-    await typeInto(setEmail, DEMO_USER.email, 14);
-    await typeInto(setPass, DEMO_USER.pass, 40);
-    passRef.current?.focus();
-  };
-
   const submit = async (e) => {
     e.preventDefault();
-    setSuggest(false);
     const em = email.trim().toLowerCase();
     const pw = pass;
     if (!em || !pw) {
@@ -277,7 +253,7 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
                     left: `${50 + 50 * Math.cos(a)}%`,
                     top: `${50 + 50 * Math.sin(a)}%`,
                   }}
-                  dangerouslySetInnerHTML={{ __html: ICONS[t.id] }}
+                  dangerouslySetInnerHTML={{ __html: ICONS[t.iconKey] || ICONS.hub }}
                 />
               );
             })}
@@ -292,7 +268,7 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
         <div className={`pending${pending ? ' show' : ''}`} style={{ '--pc': pending?.accent }}>
           {pending && (
             <>
-              <span className="pi" id="pendingIc" dangerouslySetInnerHTML={{ __html: ICONS[pending.id] }} />
+              <span className="pi" id="pendingIc" dangerouslySetInnerHTML={{ __html: ICONS[pending.iconKey] || ICONS.hub }} />
               <span id="pendingText">
                 {pending.soon
                   ? `Log in to turn on ${pending.name} launch alerts`
@@ -410,11 +386,6 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
                     setEmail(e.target.value);
                     if (invalidField === 'email') setInvalidField('');
                   }}
-                  onFocus={() => {
-                    setSuggestTop(66);
-                    if (email.trim().toLowerCase() !== DEMO_USER.email) setSuggest(true);
-                  }}
-                  onBlur={() => setTimeout(() => setSuggest(false), 140)}
                 />
                 <label htmlFor="lgEmail">Work email</label>
                 <svg className="ic icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -435,11 +406,6 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
                     setPass(e.target.value);
                     if (invalidField === 'pass') setInvalidField('');
                   }}
-                  onFocus={() => {
-                    setSuggestTop(138);
-                    if (email.trim().toLowerCase() !== DEMO_USER.email) setSuggest(true);
-                  }}
-                  onBlur={() => setTimeout(() => setSuggest(false), 140)}
                   onKeyUp={(e) => setCaps(!!(e.getModifierState && e.getModifierState('CapsLock')))}
                 />
                 <label htmlFor="lgPass">Password</label>
@@ -456,30 +422,6 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
                   <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: showPass ? EYE_OFF : EYE }} />
                 </button>
                 <p className={`caps${caps ? ' show' : ''}`}>Caps Lock is on</p>
-              </div>
-              <div className={`suggest${suggest ? ' open' : ''}`} role="listbox" aria-label="Demo user" style={{ top: suggestTop }} onMouseDown={(e) => e.preventDefault()}>
-                <small>Demo user</small>
-                <button type="button" className="sug" role="option" onClick={fillDemo}>
-                  <span className="avatar" style={{ width: 36, height: 36, fontSize: 12.5 }}>
-                    {initials(DEMO_USER.name)}
-                  </span>
-                  <span>
-                    {DEMO_USER.name}
-                    <em>{DEMO_USER.email}</em>
-                  </span>
-                  <svg
-                    className="sel icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </button>
               </div>
             </div>
             <div className="row-between">

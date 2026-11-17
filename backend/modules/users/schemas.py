@@ -51,6 +51,11 @@ class UserUpdatePayload(BaseModel):
         return email
 
 
+class ToolUpdatePayload(BaseModel):
+    is_product_live: bool | None = None
+    is_upcoming: bool | None = None
+
+
 class ToolCreatePayload(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     link: str | None = Field(default=None, max_length=255)

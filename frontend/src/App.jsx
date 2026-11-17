@@ -9,6 +9,7 @@ import {
   NoAccessModal,
 } from './hub/modals';
 import { Assistant } from './hub/Assistant';
+import { AdminView } from './hub/admin';
 import {
   BUG,
   CHAT,
@@ -21,9 +22,7 @@ import {
   SW,
 } from './hub/icons';
 import {
-  DEMO_USER,
   HUB,
-  LIVE,
   T,
   TOOLS,
   allUpdates,
@@ -31,6 +30,7 @@ import {
   first,
   fmt,
   iso,
+  setApiTools,
 } from './hub/data';
 
 const reduce =
@@ -65,7 +65,7 @@ const mapBackendUser = (data) => {
     role: ROLE_LABEL[rawRole] || rawRole,
     rawRole,
     canPost,
-    access: LIVE.map((t) => t.id),
+    isAdmin: rawRole === 'SUPER_ADMIN',
     token: data.access_token,
   };
 };
@@ -76,16 +76,13 @@ const loadUser = () => {
     if (raw) {
       const u = JSON.parse(raw);
       if (u && u.email) {
-        const fallbackAccess = LIVE.map((t) => t.id);
-        const merged = {
+        return {
           name: prettifyName(u.email),
           role: u.role || 'Employee',
           canPost: !!u.canPost,
-          access: fallbackAccess,
+          isAdmin: !!u.isAdmin,
           ...u,
         };
-        if (!Array.isArray(merged.access)) merged.access = fallbackAccess;
-        return merged;
       }
     }
   } catch (e) {
@@ -131,7 +128,7 @@ export function App() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [tools, setTools] = useState([]);
+  const [toolsVersion, setToolsVersion] = useState(0);
   const AUTH_API_BASE = '/api/auth';
 
   const navigate = (h) => {
@@ -238,13 +235,16 @@ export function App() {
       toggleNotifyFor(u, id);
       return;
     }
+    if (t.inactive) {
+      toast(`${t.name} is currently inactive`);
+      return;
+    }
     if (!u) {
       openLogin(id);
       return;
     }
-    if (!Array.isArray(u.access) || !u.access.includes(id)) {
-      setNaTool(id);
-      setModal('noAccess');
+    if (!t.url) {
+      toast(`No app URL configured for ${t.name}`);
       return;
     }
     window.open(t.url, '_blank', 'noopener');
@@ -255,19 +255,23 @@ export function App() {
   const toggleNotify = (id) => toggleNotifyFor(user, id);
 
   const finishLogin = (u, p) => {
+    if (u.isAdmin) {
+      navigate('admin');
+      toast(`Logged in as ${u.name}, ${u.role}`);
+      return;
+    }
     navigate('top');
     if (p) {
       const t = T[p];
-      if (t.soon) {
+      if (t?.soon) {
         toggleNotifyFor(u, p);
-      } else if (Array.isArray(u.access) && u.access.includes(p)) {
+      } else if (t?.url) {
         toast(`Logged in. ${t.name} is ready.`, {
           label: `Open ${t.name}`,
           href: t.url,
         });
       } else {
         toast(`Logged in as ${u.name}`);
-        setTimeout(() => tryOpenFor(u, p), 300);
       }
     } else {
       toast(`Logged in as ${u.name}`);
@@ -275,13 +279,6 @@ export function App() {
   };
 
   const handleLogin = async (email, password) => {
-    if (email === DEMO_USER.email && password === DEMO_USER.pass) {
-      const u = { ...DEMO_USER };
-      setUser(u);
-      const p = pendingTool;
-      setPendingTool(null);
-      return { ok: true, afterLogin: () => finishLogin(u, p) };
-    }
     try {
       const response = await fetch(`${AUTH_API_BASE}/login`, {
         method: 'POST',
@@ -451,6 +448,26 @@ export function App() {
   }, [user]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch('/api/tools')
+      .then((response) => response.json().catch(() => ({})))
+      .then((result) => {
+        if (cancelled) return;
+        if (result?.success === false) throw new Error(result?.message || 'Unable to load tools');
+        setApiTools(result?.data?.tools || []);
+        setToolsVersion((version) => version + 1);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setApiTools([]);
+        setToolsVersion((version) => version + 1);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     try {
       localStorage.setItem('hs_posts', JSON.stringify(posts));
     } catch (e) {
@@ -473,6 +490,12 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (route === 'admin' && !user?.isAdmin) {
+      navigate('top');
+    }
+  }, [route, user?.isAdmin]);
+
+  useEffect(() => {
     const isHome = !route || route === 'top';
     document.documentElement.classList.toggle('onepage', isHome && !user);
     if (!isHome) window.scrollTo(0, 0);
@@ -480,10 +503,11 @@ export function App() {
 
   useEffect(() => {
     if (!user) return;
-    const access = user.access || [];
-    const hasReady = TOOLS.some((t) => !t.soon && access.includes(t.id));
-    setToolTab(hasReady ? 'ready' : LIVE.length ? 'locked' : 'soon');
-  }, [user, route]);
+    if (TOOLS.some((t) => !t.soon && !t.inactive)) setToolTab('ready');
+    else if (TOOLS.some((t) => t.soon)) setToolTab('soon');
+    else if (TOOLS.some((t) => t.inactive)) setToolTab('inactive');
+    else setToolTab('ready');
+  }, [user, route, toolsVersion]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -528,19 +552,13 @@ export function App() {
       I.push({
         g: 'Tools',
         title: t.name,
-        sub: t.soon
-          ? 'Coming soon'
-          : `${t.sub}${
-              user && (!Array.isArray(user.access) || !user.access.includes(t.id))
-                ? ' (no access)'
-                : ''
-            }`,
+        sub: t.soon ? 'Coming soon' : t.sub,
         ac: t.accent,
-        ic: ICONS[t.id],
-        k: `${t.desc} ${t.features.join(' ')}`,
+        ic: ICONS[t.iconKey] || ICONS.hub,
+        k: `${t.name} ${t.desc}`,
         run: () => tryOpen(t.id),
       });
-      if (!t.soon) {
+      if (!t.soon && t.manual) {
         I.push({
           g: 'Manuals and demos',
           title: `${t.name} manual`,
@@ -553,6 +571,8 @@ export function App() {
             toast(`Opening ${t.name} manual in a new tab`);
           },
         });
+      }
+      if (!t.soon && t.demo) {
         I.push({
           g: 'Manuals and demos',
           title: `${t.name} demo`,
@@ -566,17 +586,6 @@ export function App() {
           },
         });
       }
-      t.features.forEach((f) =>
-        I.push({
-          g: 'Features',
-          title: f,
-          sub: `In ${t.name}`,
-          ac: t.accent,
-          ic: ICONS[t.id],
-          k: t.name,
-          run: () => tryOpen(t.id),
-        })
-      );
     });
     updates.forEach((u) => {
       const t = T[u.tool] || HUB;
@@ -637,11 +646,13 @@ export function App() {
       I.push({ g: 'Actions', title: a[0], sub: a[1], ac: '#1C5BDB', ic: SW(a[2]), k: a[3], run: a[4] })
     );
     return I;
-  }, [user, posts, notify]);
+  }, [user, posts, notify, toolsVersion]);
 
   const isNews = route === 'whats-new';
   const articleId = route.startsWith('update-') ? route.slice(7) : null;
   const article = articleId ? updates.find((u) => u.id === articleId) : null;
+  const isAdminRoute =
+    !!user?.isAdmin && (route === 'admin' || route === 'top' || !route);
 
   return (
     <>
@@ -666,6 +677,14 @@ export function App() {
         </defs>
       </svg>
 
+      <div className="aurora" aria-hidden="true">
+        <i></i>
+        <i></i>
+        <i></i>
+        <i></i>
+      </div>
+      <div className="grid-bg" aria-hidden="true"></div>
+
       <SiteHeader
         user={user}
         theme={theme}
@@ -676,6 +695,7 @@ export function App() {
         onDemo={() => setModal('demo')}
         onPost={openPost}
         onNews={() => navigate('whats-new')}
+        onAdmin={() => navigate('admin')}
         query={query}
         setQuery={setQuery}
         searchIndex={searchIndex}
@@ -686,7 +706,14 @@ export function App() {
 
       <main id="top">
         <div id="view">
-          {isNews ? (
+          {isAdminRoute ? (
+            <AdminView
+              user={user}
+              updatesCount={updates.length}
+              onNavigate={navigate}
+              toast={toast}
+            />
+          ) : isNews ? (
             <NewsPage
               updates={updates}
               user={user}
@@ -714,7 +741,7 @@ export function App() {
               onOpen={tryOpen}
               onNotify={toggleNotify}
               onRes={(label) => toast(`Opening ${label} in a new tab`)}
-              onLaunch={(id) => toast(`Opening ${T[id].name} in a new tab`)}
+              onLaunch={(id) => toast(`Opening ${T[id]?.name || 'tool'} in a new tab`)}
               onPost={openPost}
               onAsk={askAssistant}
               toolTab={toolTab}

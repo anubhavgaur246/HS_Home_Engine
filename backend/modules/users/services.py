@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from core.security import hash_password
 from modules.users.models import Tools, User
 from shared.enums import RoleType
-from .schemas import AdminCreatePayload, ToolCreatePayload, UserUpdatePayload
+from .schemas import AdminCreatePayload, ToolCreatePayload, ToolUpdatePayload, UserUpdatePayload
 
 security = HTTPBearer()
 
@@ -95,6 +95,18 @@ def list_users_service(db: Session, search: str, page: int):
     }
 
 
+def list_admin_users_service(db: Session):
+    users = db.scalars(
+        select(User)
+        .where(User.role.in_([RoleType.SUPER_ADMIN, RoleType.ADMIN]))
+        .order_by(User.id)
+    ).all()
+    return {
+        "users": [serialize_user(user) for user in users],
+        "total": len(users),
+    }
+
+
 def create_admin_service(db: Session, payload: AdminCreatePayload):
     admin = User(
         hs_email_id=payload.hs_email_id,
@@ -159,6 +171,32 @@ def list_tools_service(db: Session):
         "tools": [serialize_tool(tool) for tool in tools],
         "total": len(tools),
     }
+
+
+def update_tool_service(db: Session, tool_id: int, payload: ToolUpdatePayload):
+    tool = db.get(Tools, tool_id)
+    if tool is None:
+        raise HTTPException(status_code=404, detail="Tool not found")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(tool, field, value)
+
+    db.commit()
+    db.refresh(tool)
+    return serialize_tool(tool)
+
+
+def replace_tool_service(db: Session, tool_id: int, payload: ToolCreatePayload):
+    tool = db.get(Tools, tool_id)
+    if tool is None:
+        raise HTTPException(status_code=404, detail="Tool not found")
+
+    for field, value in payload.model_dump().items():
+        setattr(tool, field, value)
+
+    db.commit()
+    db.refresh(tool)
+    return serialize_tool(tool)
 
 
 def create_tool_service(db: Session, payload: ToolCreatePayload):
