@@ -2,8 +2,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core.security import hash_password
+from modules.users.models import User
 
-from .models import User
 from .schemas import EmployeeImport, EmployeeImportResult
 
 TEMPORARY_PASSWORD = "temporary_password"
@@ -48,6 +48,13 @@ def import_employees(db: Session, employees: list[EmployeeImport]) -> EmployeeIm
                 password=hash_password(TEMPORARY_PASSWORD),
                 first_name=employee.first_name,
                 last_name=employee.last_name,
+                level=employee.level,
+                team=employee.team,
+                programme_name=employee.programme_name,
+                projectname=employee.projectname,
+                manager=employee.manager,
+                lead=employee.lead,
+                from_teamsphere=True,
                 role=employee.role,
                 is_password_reset_required=True,
             )

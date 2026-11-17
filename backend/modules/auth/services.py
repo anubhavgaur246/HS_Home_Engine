@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from core.config import settings
 from core.security import hash_password, verify_password
-from modules.data_upload.models import User
+from modules.users.models import User
 from shared.enums import RoleType
 
 
@@ -28,6 +28,12 @@ def create_access_token(user: User, *, reset_password: bool = False) -> str:
         "sub": str(user.id),
         "email": user.hs_email_id,
         "role": user.role.value,
+        "level": user.level,
+        "team": user.team,
+        "programme_name": user.programme_name,
+        "projectname": user.projectname,
+        "manager": user.manager,
+        "lead": user.lead,
         "reset_password": reset_password,
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=expires_in)).timestamp()),

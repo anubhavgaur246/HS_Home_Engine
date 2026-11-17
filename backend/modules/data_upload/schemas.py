@@ -13,6 +13,12 @@ class EmployeeImport(BaseModel):
     first_name: str = Field(alias="firstName", min_length=1, max_length=100)
     last_name: str | None = Field(default=None, alias="lastName", max_length=100)
     ldap: str | None = Field(default=None, max_length=100)
+    level: str | None = Field(default=None, max_length=100)
+    team: str | None = Field(default=None, max_length=255)
+    programme_name: str | None = Field(default=None, alias="programName", max_length=255)
+    projectname: str | None = Field(default=None, alias="projectName", max_length=255)
+    manager: str | None = Field(default=None, alias="primaryManagerLdap", max_length=100)
+    lead: str | None = Field(default=None, alias="primaryLeadLdap", max_length=100)
     role: RoleType = RoleType.USER
 
     @field_validator("role", mode="before")
