@@ -70,6 +70,13 @@ const mapBackendUser = (data) => {
   };
 };
 
+const readAuthLink = () => {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('auth_token');
+  const action = params.get('auth_action');
+  return token && ['setup', 'recovery'].includes(action) ? { token, action } : null;
+};
+
 const loadUser = () => {
   try {
     const raw = sessionStorage.getItem('hs_user');
@@ -114,6 +121,7 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [pathname, setPathname] = useState(() => window.location.pathname);
+  const [authLink, setAuthLink] = useState(readAuthLink);
   const [adminSection, setAdminSection] = useState('all');
   const [user, setUser] = useState(loadUser);
   const [showLogin, setShowLogin] = useState(false);
@@ -156,7 +164,7 @@ export function App() {
   });
   const [route, setRoute] = useState(() => decodeURIComponent(window.location.hash.slice(1)));
   const [query, setQuery] = useState('');
-  const [modal, setModal] = useState(null);
+  const [modal, setModal] = useState(() => (authLink ? 'login' : null));
   const [pendingTool, setPendingTool] = useState(null);
   const [naTool, setNaTool] = useState(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -165,6 +173,10 @@ export function App() {
   const [filters, setFilters] = useState({ tool: 'all', from: '', to: '' });
   const [docURLs, setDocURLs] = useState({});
   const [toasts, setToasts] = useState([]);
+
+  useEffect(() => {
+    if (authLink) window.history.replaceState({}, '', `${pathname}${window.location.hash}`);
+  }, [authLink, pathname]);
 
   const toast = (msg, action) => {
     const id = Math.random().toString(36).slice(2);
@@ -202,7 +214,10 @@ export function App() {
   };
 
   const openModal = (id) => setModal(id);
-  const closeModal = () => setModal(null);
+  const closeModal = () => {
+    setModal(null);
+    setAuthLink(null);
+  };
 
   const openLogin = (toolId) => {
     setPendingTool(toolId || null);
@@ -289,11 +304,12 @@ export function App() {
       const data = result?.data || {};
       if (data.requires_password_reset) {
         return {
-          requiresReset: true,
-          resetToken: data.reset_token || '',
+          requiresSetupLink: true,
+          setupLinkSent: !!data.setup_link_sent,
+          email: data.email || email,
           message:
             result?.message ||
-            'Your password needs to be reset. Please choose a new password and confirm it to continue.',
+            'Your account needs setup. Check your work email for a password link.',
         };
       }
       if (!response.ok || result?.success === false || !data.access_token) {
@@ -358,6 +374,59 @@ export function App() {
       return { ok: true, afterLogin: () => finishLogin(u, p) };
     } catch (e) {
       return { ok: false, error: 'Unable to reset your password. Please try again.' };
+    }
+  };
+
+  const handleAuthLinkRequest = async (email, purpose) => {
+    try {
+      const response = await fetch(
+        `${AUTH_API_BASE}/${purpose === 'setup' ? 'signup' : 'forgot-password'}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success === false) {
+        return { ok: false, error: result?.detail || result?.error || result?.message || 'Unable to send the link.' };
+      }
+      return { ok: true, message: result?.message };
+    } catch (e) {
+      return { ok: false, error: 'Unable to contact the server. Please try again.' };
+    }
+  };
+
+  const handleCompleteAuthLink = async (token, newPassword) => {
+    try {
+      const response = await fetch(`${AUTH_API_BASE}/complete-password-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, new_password: newPassword }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success === false) {
+        return { ok: false, error: result?.detail || result?.error || result?.message || 'This password link is invalid or expired.' };
+      }
+
+      const email = result?.data?.email;
+      const loginResponse = await fetch(`${AUTH_API_BASE}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: newPassword }),
+      });
+      const loginResult = await loginResponse.json().catch(() => ({}));
+      const data = loginResult?.data || {};
+      if (!loginResponse.ok || !data.access_token) {
+        return { ok: true, afterLogin: () => toast('Password updated. Please log in with your new password.') };
+      }
+      const u = mapBackendUser(data);
+      setUser(u);
+      const p = pendingTool;
+      setPendingTool(null);
+      return { ok: true, afterLogin: () => finishLogin(u, p) };
+    } catch (e) {
+      return { ok: false, error: 'Unable to update your password. Please try again.' };
     }
   };
 
@@ -760,7 +829,9 @@ export function App() {
         pendingTool={pendingTool}
         onLogin={handleLogin}
         onResetPassword={handleResetPassword}
-        onForgot={() => toast('A reset link would go to your work email')}
+        onRequestLink={handleAuthLinkRequest}
+        onCompleteAuthLink={handleCompleteAuthLink}
+        authLink={authLink}
       />
       <DemoModal open={modal === 'demo'} onClose={closeModal} onBooked={() => toast('Demo booked')} />
       <PostModal open={modal === 'post'} onClose={closeModal} user={user} onPublish={publish} />

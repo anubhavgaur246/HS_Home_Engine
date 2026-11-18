@@ -7,7 +7,7 @@ class AdminCreatePayload(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)
     hs_email_id: str = Field(min_length=3, max_length=255)
-    password: str = Field(min_length=12, max_length=255)
+    password: str = Field(min_length=1, max_length=255)
 
     @field_validator("first_name", "last_name")
     @classmethod
