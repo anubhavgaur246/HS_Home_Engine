@@ -116,7 +116,16 @@ function Success({ show, title, text, extra, onClose }) {
 // ---------------------------------------------------------------------------
 // Login
 // ---------------------------------------------------------------------------
-export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPassword, onForgot }) {
+export function LoginModal({
+  open,
+  onClose,
+  pendingTool,
+  onLogin,
+  onResetPassword,
+  onRequestLink,
+  onCompleteAuthLink,
+  authLink,
+}) {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -128,6 +137,9 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
   const [done, setDone] = useState(false);
   const [resetRequired, setResetRequired] = useState(false);
   const [resetToken, setResetToken] = useState('');
+  const [flow, setFlow] = useState('login');
+  const [requestPurpose, setRequestPurpose] = useState('recovery');
+  const [linkSent, setLinkSent] = useState(false);
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -145,6 +157,10 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
       setInvalidField('');
       setDone(false);
       setBusy(false);
+      setFlow('login');
+      setResetRequired(false);
+      setResetToken('');
+      setLinkSent(false);
     }
   }, [open]);
 
@@ -153,6 +169,16 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
       setTimeout(() => emailRef.current?.focus({ preventScroll: true }), 120);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (open && authLink) {
+      setFlow('link');
+      setResetToken(authLink.token);
+      setResetRequired(false);
+      setLinkSent(false);
+      setError(false);
+    }
+  }, [open, authLink]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -169,6 +195,16 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
     setError(false);
     const result = await onLogin(em, pw);
     setBusy(false);
+    if (result.requiresSetupLink) {
+      setFlow('request');
+      setRequestPurpose('setup');
+      setEmail(result.email || em);
+      setPass('');
+      setLinkSent(result.setupLinkSent);
+      setError(!result.setupLinkSent);
+      setErrorMsg(result.setupLinkSent ? '' : result.message || 'Unable to send the setup link. Contact your administrator.');
+      return;
+    }
     if (result.requiresReset) {
       setResetRequired(true);
       setResetToken(result.resetToken || '');
@@ -228,6 +264,71 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
     result.afterLogin?.();
   };
 
+  const startLinkRequest = (purpose) => {
+    setFlow('request');
+    setRequestPurpose(purpose);
+    setLinkSent(false);
+    setError(false);
+    setErrorMsg('');
+  };
+
+  const submitLinkRequest = async (e) => {
+    e.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+    const allowedEmail = normalizedEmail.endsWith('@highspring.in') ||
+      (import.meta.env.DEV && normalizedEmail.endsWith('@yopmail.com'));
+    if (!allowedEmail) {
+      setErrorMsg(import.meta.env.DEV
+        ? 'Use your @highspring.in or @yopmail.com email.'
+        : 'Use your @highspring.in work email.');
+      setError(true);
+      return;
+    }
+    setBusy(true);
+    setError(false);
+    const result = await onRequestLink(normalizedEmail, requestPurpose);
+    setBusy(false);
+    if (!result.ok) {
+      setErrorMsg(result.error || 'Unable to send the link. Please try again.');
+      setError(true);
+      return;
+    }
+    setEmail(normalizedEmail);
+    setLinkSent(true);
+  };
+
+  const submitAuthLinkPassword = async (e) => {
+    e.preventDefault();
+    if (!newPass) {
+      setErrorMsg('Enter a new password.');
+      setError(true);
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setErrorMsg('The new password and confirm password do not match.');
+      setError(true);
+      return;
+    }
+    setBusy(true);
+    setError(false);
+    const result = await onCompleteAuthLink(resetToken, newPass);
+    setBusy(false);
+    if (!result.ok) {
+      setErrorMsg(result.error || 'This password link is invalid or expired.');
+      setError(true);
+      return;
+    }
+    setDone(true);
+    await sleep(500);
+    setDone(false);
+    setFlow('login');
+    setResetToken('');
+    setNewPass('');
+    setConfirmPass('');
+    onClose();
+    result.afterLogin?.();
+  };
+
   return (
     <Modal open={open} onClose={onClose} className="login-modal" labelledBy="loginTitle">
       <div className="login-art" aria-hidden="true">
@@ -282,6 +383,16 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
           <div>
             <h2 id="loginTitle">Reset your password</h2>
             <p className="lead">Choose a new password for {email}.</p>
+          </div>
+        ) : flow === 'link' ? (
+          <div>
+            <h2 id="loginTitle">{authLink?.action === 'setup' ? 'Set up your password' : 'Reset your password'}</h2>
+            <p className="lead">Choose a new password and confirm it to continue.</p>
+          </div>
+        ) : flow === 'request' ? (
+          <div>
+            <h2 id="loginTitle">{requestPurpose === 'setup' ? 'Set up your account' : 'Forgot password?'}</h2>
+            <p className="lead">Enter your Highspring work email and we’ll send a secure link.</p>
           </div>
         ) : (
           <div>
@@ -354,6 +465,42 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
                 <path d="M5 12.5l4.5 4.5L19 7.5" />
               </svg>
             </button>
+          </form>
+        ) : flow === 'link' ? (
+          <form className="login-form" onSubmit={submitAuthLinkPassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className={`form-error${error ? ' show' : ''}`} role="alert">{errorMsg}</div>
+            <div className="login-fields">
+              <div className="ff">
+                <input type="password" autoComplete="new-password" placeholder=" " value={newPass} onChange={(e) => setNewPass(e.target.value)} />
+                <label>New password</label>
+                <svg className="ic icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="3" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+              </div>
+              <div className="ff">
+                <input type="password" autoComplete="new-password" placeholder=" " value={confirmPass} onChange={(e) => setConfirmPass(e.target.value)} />
+                <label>Confirm new password</label>
+                <svg className="ic icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="3" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+              </div>
+            </div>
+            <button className={`btn primary login-submit${done ? ' done' : ''}${busy ? ' loading' : ''}`} disabled={busy} type="submit">
+              <span className="spinner"></span><span className="btn-label">Confirm password</span><Raw html={ARROW} />
+            </button>
+            <button type="button" className="link-btn" onClick={() => { setFlow('login'); setResetToken(''); }}>Back to login</button>
+          </form>
+        ) : flow === 'request' ? (
+          <form className="login-form" onSubmit={submitLinkRequest} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className={`form-error${error ? ' show' : ''}`} role="alert">{errorMsg}</div>
+            {linkSent && <p className="lead" role="status">If an eligible account exists, a password link has been sent to that email address.</p>}
+            <div className="login-fields">
+              <div className="ff">
+                <input type="email" autoComplete="email" placeholder=" " value={email} onChange={(e) => { setEmail(e.target.value); setLinkSent(false); }} />
+                <label>Highspring work email</label>
+                <svg className="ic icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="m3 7 9 6 9-6" /></svg>
+              </div>
+            </div>
+            <button className={`btn primary login-submit${busy ? ' loading' : ''}`} disabled={busy} type="submit">
+              <span className="spinner"></span><span className="btn-label">Send {requestPurpose === 'setup' ? 'setup' : 'reset'} link</span><Raw html={ARROW} />
+            </button>
+            <button type="button" className="link-btn" onClick={() => { setFlow('login'); setError(false); }}>Back to login</button>
           </form>
         ) : (
           <form className="login-form" ref={formRef} onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -429,7 +576,7 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
                 <input type="checkbox" defaultChecked />
                 <span className="track"></span>Keep me logged in
               </label>
-              <button type="button" className="link-btn" onClick={onForgot}>
+              <button type="button" className="link-btn" onClick={() => startLinkRequest('recovery')}>
                 Forgot password?
               </button>
             </div>
@@ -440,6 +587,9 @@ export function LoginModal({ open, onClose, pendingTool, onLogin, onResetPasswor
               <svg className="icon check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M5 12.5l4.5 4.5L19 7.5" />
               </svg>
+            </button>
+            <button type="button" className="link-btn" onClick={() => startLinkRequest('setup')}>
+              Set up your account
             </button>
             <p className="secure">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">

@@ -249,7 +249,7 @@ export function UserManagement({ user, section, onSectionChange, onGoHome }) {
             <label>First name<input required maxLength={100} value={adminForm.first_name} onChange={(event) => setAdminForm({ ...adminForm, first_name: event.target.value })} /></label>
             <label>Last name<input maxLength={100} value={adminForm.last_name} onChange={(event) => setAdminForm({ ...adminForm, last_name: event.target.value })} /></label>
             <label className="user-admin-email">Highspring email<input type="email" required maxLength={255} value={adminForm.hs_email_id} onChange={(event) => setAdminForm({ ...adminForm, hs_email_id: event.target.value })} /></label>
-            <label className="user-admin-password">Initial password<input type="password" required minLength={12} maxLength={255} autoComplete="new-password" value={adminForm.password} onChange={(event) => setAdminForm({ ...adminForm, password: event.target.value })} /><small>At least 12 characters. The admin must reset it at first sign-in.</small></label>
+            <label className="user-admin-password">Initial password<input type="password" required maxLength={255} autoComplete="new-password" value={adminForm.password} onChange={(event) => setAdminForm({ ...adminForm, password: event.target.value })} /><small>The admin must reset it at first sign-in.</small></label>
           </div>
           <div className="user-form-actions"><button className="upload-submit-button" disabled={creating}><Plus size={17} />{creating ? 'Creating...' : 'Create admin'}</button></div>
         </form>
