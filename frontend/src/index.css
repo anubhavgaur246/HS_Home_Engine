@@ -305,6 +305,7 @@ html.onepage .car-viewport{padding-bottom:60px}
 .a-table th{text-align:left;padding:12px 14px;font-size:13.5px;font-weight:800;color:var(--muted);border-bottom:1px solid var(--line);background:var(--surface-2)}
 .a-table td{padding:12px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--line);vertical-align:middle}
 .a-table tr:last-child td{border-bottom:none}
+.a-table tr.row-inactive td{background:color-mix(in srgb,var(--muted) 8%,var(--surface))}
 .a-table tr:hover td{background:var(--surface-2)}
 .toggle{position:relative;width:42px;height:24px;border-radius:999px;border:none;cursor:pointer;transition:background .25s}
 .toggle::after{content:"";position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .35s var(--spring)}
@@ -324,6 +325,11 @@ html.onepage .car-viewport{padding-bottom:60px}
 .a-card .meta{margin-bottom:2px}
 .a-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
 .a-head h2{font-size:clamp(22px,2.4vw,28px);font-weight:700}
+.a-user-section{margin-bottom:28px}
+.a-subhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.a-subhead h3{font-size:17px;font-weight:700}
+.a-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;color:var(--muted);font-size:13.5px;font-weight:600}
+.a-pagination-actions{display:flex;gap:8px}
 .user-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px}
 .user-form .half{grid-column:span 2}
 .user-form .full{grid-column:1/-1}

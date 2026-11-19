@@ -40,6 +40,7 @@ const mapApiUser = (user) => ({
   project: user.projectname || user.team || '—',
   level: user.level || '—',
   status: user.status || '',
+  fromTeamsphere: !!user.from_teamsphere,
   raw: user,
 });
 
@@ -219,35 +220,8 @@ function ToolEditModal({ open, tool, onClose, onSave }) {
   );
 }
 
-const EMPTY_USER = {
-  first: '',
-  last: '',
-  ldap: '',
-  pmLdap: '',
-  leadLdap: '',
-  project: '',
-  level: '',
-  newLevel: '',
-  vendor: '',
-  email: '',
-  status: 'Active',
-  process: '',
-  program: '',
-  roleDate: '',
-  levelBefore: '',
-  levelAfter: '',
-  billDate: '',
-  backfill: '',
-  billStart: '',
-  lang: 'English',
-  location: '',
-  shift: '',
-  comments: '',
-  lwd: '',
-  resign: '',
-  start: '',
-  pic: '',
-};
+const EMPTY_USER = { email: '', role: 'USER' };
+const CREATABLE_ROLES = ['USER', 'ADMIN', 'MANAGER', 'LEAD', 'CO_LEAD', 'HR', 'TA'];
 
 function AddUserModal({ open, onClose, user, onAdded, toast }) {
   const [form, setForm] = useState(EMPTY_USER);
@@ -276,86 +250,45 @@ function AddUserModal({ open, onClose, user, onAdded, toast }) {
 
   const submit = async (event) => {
     event.preventDefault();
-    const required = ['first', 'ldap', 'pmLdap', 'email', 'start', 'shift', 'vendor', 'process', 'project', 'level'];
-    const nextInvalid = {};
-    required.forEach((key) => {
-      if (!String(form[key] || '').trim()) nextInvalid[key] = true;
-    });
-    if (Object.keys(nextInvalid).length) {
-      setInvalid(nextInvalid);
+    const email = String(form.email || '').trim();
+    if (!email) {
+      setInvalid({ email: true });
       return;
     }
 
-    const name = `${form.first.trim()} ${form.last.trim()}`.trim();
     const row = {
       id: Date.now(),
-      name,
-      email: form.email.trim(),
-      ldap: form.ldap.trim().toUpperCase(),
-      role: 'Employee',
-      status: form.status,
-      level: form.level,
-      project: form.project,
-      vendor: form.vendor,
-      shift: form.shift,
-      location: form.location.trim(),
-      start: form.start,
+      name: email.split('@')[0],
+      email,
+      role: ROLE_LABEL[form.role] || form.role,
+      rawRole: form.role,
+      status: 'Active',
+      fromTeamsphere: false,
     };
 
     if (!user?.token) {
       onAdded(row);
       setForm(EMPTY_USER);
-      setSuccess(`${name} has been added.`);
-      toast(`User ${name} added`);
+      setSuccess(`${email} has been added.`);
+      toast(`User ${email} added`);
       return;
     }
 
     setBusy(true);
     try {
-      const payload = [
-        {
-          firstName: form.first.trim(),
-          lastName: form.last.trim() || null,
-          ldap: form.ldap.trim(),
-          email: form.email.trim(),
-          highspringEmail: form.email.trim(),
-          level: form.level,
-          team: form.project,
-          programName: form.program || null,
-          projectName: form.project,
-          primaryManagerLdap: form.pmLdap.trim(),
-          primaryLeadLdap: form.leadLdap.trim(),
-          role: 'USER',
-        },
-      ];
-      const body = new FormData();
-      body.append(
-        'file',
-        new Blob([JSON.stringify(payload)], { type: 'application/json' }),
-        'employee.json'
-      );
-
-      const response = await fetch(`${API_BASE}/employees/import`, {
+      const response = await fetch(`${API_BASE}/users`, {
         method: 'POST',
-        headers: authHeaders(user.token),
-        body,
+        headers: { ...authHeaders(user.token), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role: form.role }),
       });
       const result = await response.json().catch(() => ({}));
-      const data = result?.data || {};
       if (!response.ok || result?.success === false) {
         throw new Error(errText(result, 'Unable to add this user.'));
       }
-      if (!data.created) {
-        throw new Error(
-          data.skipped
-            ? 'A user with this email already exists.'
-            : 'This user could not be added. Check the email address.'
-        );
-      }
 
       setForm(EMPTY_USER);
-      setSuccess(`${name} has been added.`);
-      toast(`User ${name} added`);
+      setSuccess(`${email} has been added.`);
+      toast(`User ${email} added`);
       await onAdded(row);
     } catch (submitError) {
       setError(submitError.message || 'Unable to add this user.');
@@ -387,7 +320,7 @@ function AddUserModal({ open, onClose, user, onAdded, toast }) {
         <>
           <h2 id="auTitle">Add new user</h2>
           <p className="lead">
-            All fields marked * are required.
+            Users created here are managed by this home engine. They must reset their password at first sign-in.
           </p>
           {error ? (
             <div className="form-error show" role="alert" style={{ marginBottom: 14 }}>
@@ -400,82 +333,6 @@ function AddUserModal({ open, onClose, user, onAdded, toast }) {
           ) : null}
           <form onSubmit={submit} noValidate>
             <div className="user-form">
-              <div className="full" style={{ gridColumn: '1/-1', borderBottom: '1px solid var(--line)', paddingBottom: 4, marginBottom: 2 }}>
-                <b style={{ fontFamily: 'var(--display)', fontSize: 17, color: 'var(--brand)' }}>
-                  Basic information
-                </b>
-              </div>
-              <Field label="First Name *" value={form.first} onChange={set('first')} required invalid={invalid.first} />
-              <Field label="Last Name" value={form.last} onChange={set('last')} />
-              <Field label="LDAP *" value={form.ldap} onChange={set('ldap')} required invalid={invalid.ldap} />
-              <Field
-                label="Program Manager (LDAP) *"
-                value={form.pmLdap}
-                onChange={set('pmLdap')}
-                required
-                invalid={invalid.pmLdap}
-              />
-              <Field label="Lead (LDAP) *" value={form.leadLdap} onChange={set('leadLdap')} required />
-              <SelectField
-                label="Project *"
-                value={form.project}
-                onChange={set('project')}
-                options={[
-                  { value: '', label: 'Select' },
-                  'Alpha',
-                  'Beta',
-                  'Gamma',
-                  'Delta',
-                ]}
-                required
-                invalid={invalid.project}
-              />
-              <SelectField
-                label="Level *"
-                value={form.level}
-                onChange={set('level')}
-                options={[
-                  { value: '', label: 'Select' },
-                  'L1',
-                  'L2',
-                  'L3',
-                  'L4',
-                  'L5',
-                ]}
-                required
-                invalid={invalid.level}
-              />
-              <SelectField
-                label="New Level"
-                value={form.newLevel}
-                onChange={set('newLevel')}
-                options={[
-                  { value: '', label: 'Same' },
-                  'L1',
-                  'L2',
-                  'L3',
-                  'L4',
-                  'L5',
-                ]}
-              />
-              <div className="full" style={{ gridColumn: '1/-1', borderBottom: '1px solid var(--line)', paddingBottom: 4, margin: '6px 0 2px' }}>
-                <b style={{ fontFamily: 'var(--display)', fontSize: 17, color: 'var(--brand)' }}>
-                  Employment details
-                </b>
-              </div>
-              <SelectField
-                label="Vendor *"
-                value={form.vendor}
-                onChange={set('vendor')}
-                options={[
-                  { value: '', label: 'Select' },
-                  'VBS',
-                  'Highspring',
-                  'Contractor',
-                ]}
-                required
-                invalid={invalid.vendor}
-              />
               <Field
                 label="Email Address *"
                 type="email"
@@ -485,110 +342,12 @@ function AddUserModal({ open, onClose, user, onAdded, toast }) {
                 invalid={invalid.email}
               />
               <SelectField
-                label="Status *"
-                value={form.status}
-                onChange={set('status')}
-                options={['Active', 'Inactive', 'On Leave']}
+                label="Role *"
+                value={form.role}
+                onChange={set('role')}
+                options={CREATABLE_ROLES}
                 required
               />
-              <SelectField
-                label="Process *"
-                value={form.process}
-                onChange={set('process')}
-                options={[
-                  { value: '', label: 'Select' },
-                  'Onboarding',
-                  'Active',
-                  'Offboarding',
-                ]}
-                required
-                invalid={invalid.process}
-              />
-              <SelectField
-                label="PS&E Program"
-                value={form.program}
-                onChange={set('program')}
-                options={[
-                  { value: '', label: 'Select' },
-                  'PS&E Core',
-                  'PS&E Extended',
-                  'Consulting',
-                ]}
-              />
-              <Field label="Role Change Effective Date" type="date" value={form.roleDate} onChange={set('roleDate')} />
-              <SelectField
-                label="Level (Before Change)"
-                value={form.levelBefore}
-                onChange={set('levelBefore')}
-                options={[
-                  { value: '', label: 'N/A' },
-                  'L1',
-                  'L2',
-                  'L3',
-                  'L4',
-                  'L5',
-                ]}
-              />
-              <SelectField
-                label="Level (After Change)"
-                value={form.levelAfter}
-                onChange={set('levelAfter')}
-                options={[
-                  { value: '', label: 'N/A' },
-                  'L1',
-                  'L2',
-                  'L3',
-                  'L4',
-                  'L5',
-                ]}
-              />
-              <div className="full" style={{ gridColumn: '1/-1', borderBottom: '1px solid var(--line)', paddingBottom: 4, margin: '6px 0 2px' }}>
-                <b style={{ fontFamily: 'var(--display)', fontSize: 17, color: 'var(--brand)' }}>
-                  Role changes &amp; billing
-                </b>
-              </div>
-              <Field label="Last Billing Date" type="date" value={form.billDate} onChange={set('billDate')} />
-              <Field label="Backfill LDAP" value={form.backfill} onChange={set('backfill')} />
-              <Field label="Billing Start Date" type="date" value={form.billStart} onChange={set('billStart')} />
-              <div className="full" style={{ gridColumn: '1/-1', borderBottom: '1px solid var(--line)', paddingBottom: 4, margin: '6px 0 2px' }}>
-                <b style={{ fontFamily: 'var(--display)', fontSize: 17, color: 'var(--brand)' }}>
-                  Work setup &amp; exit
-                </b>
-              </div>
-              <SelectField
-                label="Language"
-                value={form.lang}
-                onChange={set('lang')}
-                options={['English', 'Spanish', 'French', 'Hindi']}
-              />
-              <Field label="Location" value={form.location} onChange={set('location')} />
-              <SelectField
-                label="Shift *"
-                value={form.shift}
-                onChange={set('shift')}
-                options={[
-                  { value: '', label: 'Select' },
-                  'Day',
-                  'Night',
-                  'Rotational',
-                ]}
-                required
-                invalid={invalid.shift}
-              />
-              <Field
-                label="Comments / Reason of Inactive Status"
-                value={form.comments}
-                onChange={set('comments')}
-              />
-              <Field label="LWD / ML Start Date" type="date" value={form.lwd} onChange={set('lwd')} />
-              <Field label="Resignation Date" type="date" value={form.resign} onChange={set('resign')} />
-              <Field label="Start Date *" type="date" value={form.start} onChange={set('start')} required invalid={invalid.start} />
-              <Field
-                label="Profile Picture"
-                labelStyle={{ transform: 'translateY(-10px) scale(.78)', color: 'var(--brand)' }}
-              >
-                <input type="file" accept="image/*" style={{ paddingTop: 22 }} />
-              </Field>
             </div>
             <div className="form-foot" style={{ marginTop: 20 }}>
               <button className="btn" type="button" onClick={onClose}>
@@ -613,7 +372,15 @@ function AddUserModal({ open, onClose, user, onAdded, toast }) {
 
 export function AdminView({ user, updatesCount = 0, onNavigate, toast }) {
   const [tab, setTab] = useState('overview');
-  const [users, setUsers] = useState([]);
+  const [nonTeamsphereUsers, setNonTeamsphereUsers] = useState([]);
+  const [teamsphereUsers, setTeamsphereUsers] = useState([]);
+  const [teamspherePage, setTeamspherePage] = useState(1);
+  const [teamspherePaging, setTeamspherePaging] = useState({
+    total: 0,
+    page: 1,
+    page_size: 20,
+    total_pages: 1,
+  });
   const [usersLoading, setUsersLoading] = useState(false);
   const [featureList, setFeatureList] = useState([]);
   const [toolState, setToolState] = useState(() => ({
@@ -629,28 +396,51 @@ export function AdminView({ user, updatesCount = 0, onNavigate, toast }) {
   const loadUsers = useCallback(
     async (quiet = false) => {
       if (!user?.token) {
-        setUsers([]);
+        setNonTeamsphereUsers([]);
+        setTeamsphereUsers([]);
         return;
       }
       setUsersLoading(true);
       try {
-        const response = await fetch(`${API_BASE}/users/admins`, {
-          headers: authHeaders(user.token),
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || result?.success === false) {
-          throw new Error(errText(result, 'Unable to load users.'));
+        const [otherResponse, teamsphereResponse] = await Promise.all([
+          fetch(`${API_BASE}/users/non-teamsphere`, {
+            headers: authHeaders(user.token),
+          }),
+          fetch(`${API_BASE}/users/teamsphere?page=${teamspherePage}`, {
+            headers: authHeaders(user.token),
+          }),
+        ]);
+        const [otherResult, teamsphereResult] = await Promise.all([
+          otherResponse.json().catch(() => ({})),
+          teamsphereResponse.json().catch(() => ({})),
+        ]);
+        if (!otherResponse.ok || otherResult?.success === false) {
+          throw new Error(errText(otherResult, 'Unable to load users.'));
         }
-        const nextUsers = (result?.data?.users || []).map(mapApiUser);
-        setUsers(nextUsers);
+        if (!teamsphereResponse.ok || teamsphereResult?.success === false) {
+          throw new Error(errText(teamsphereResult, 'Unable to load users.'));
+        }
+
+        const paging = teamsphereResult?.data || {};
+        const totalPages = Math.max(1, paging.total_pages || 1);
+        setNonTeamsphereUsers((otherResult?.data?.users || []).map(mapApiUser));
+        setTeamsphereUsers((paging.users || []).map(mapApiUser));
+        setTeamspherePaging({
+          total: paging.total || 0,
+          page: paging.page || 1,
+          page_size: paging.page_size || 20,
+          total_pages: totalPages,
+        });
+        setTeamspherePage((current) => Math.min(current, totalPages));
       } catch (error) {
-        setUsers([]);
+        setNonTeamsphereUsers([]);
+        setTeamsphereUsers([]);
         if (!quiet) toastRef.current?.(error.message || 'Unable to load users.');
       } finally {
         setUsersLoading(false);
       }
     },
-    [user?.token]
+    [user?.token, teamspherePage]
   );
 
   const loadTools = useCallback(async () => {
@@ -674,8 +464,10 @@ export function AdminView({ user, updatesCount = 0, onNavigate, toast }) {
     loadTools();
   }, [loadUsers, loadTools]);
 
-  const totalUsers = users.length;
-  const activeUsers = users.filter((entry) => entry.status === 'Active').length;
+  const totalUsers = nonTeamsphereUsers.length + teamspherePaging.total;
+  const activeUsers = [...nonTeamsphereUsers, ...teamsphereUsers].filter(
+    (entry) => entry.status === 'Active'
+  ).length;
   const enabledTools = Object.values(toolState.configs).filter((config) => config.enabled).length;
 
   const setToolConfig = (id, patch) => {
@@ -908,17 +700,67 @@ export function AdminView({ user, updatesCount = 0, onNavigate, toast }) {
         return;
       }
     } else {
-      setUsers((current) => current.filter((item) => item.id !== entry.id));
+      setNonTeamsphereUsers((current) => current.filter((item) => item.id !== entry.id));
+      setTeamsphereUsers((current) => current.filter((item) => item.id !== entry.id));
     }
     toast?.('User removed');
   };
 
   const addLocalUser = async (row) => {
     if (!user?.token) {
-      setUsers((current) => [...current, row]);
+      setNonTeamsphereUsers((current) => [...current, row]);
       return;
     }
     await loadUsers();
+  };
+
+  const renderUserRows = (list, emptyText, showActions = true) => {
+    const colSpan = showActions ? 8 : 7;
+    if (usersLoading) {
+      return (
+        <tr>
+          <td colSpan={colSpan}>Loading users…</td>
+        </tr>
+      );
+    }
+    if (!list.length) {
+      return (
+        <tr>
+          <td colSpan={colSpan}>{emptyText}</td>
+        </tr>
+      );
+    }
+    return list.map((entry) => (
+      <tr key={entry.id} className={entry.status === 'Inactive' ? 'row-inactive' : undefined}>
+        <td style={{ fontWeight: 700 }}>{entry.name}</td>
+        <td>{entry.ldap}</td>
+        <td>{entry.email}</td>
+        <td>{entry.role}</td>
+        <td>{entry.project}</td>
+        <td>{entry.level}</td>
+        <td>
+          <span className={`badge-sm ${entry.status === 'Active' ? 'ok' : 'warn'}`}>
+            {entry.status}
+          </span>
+        </td>
+        {showActions ? (
+          <td>
+            <div className="a-actions">
+              {entry.rawRole !== 'SUPER_ADMIN' ? (
+                <button
+                  type="button"
+                  className="btn sm"
+                  style={{ color: 'var(--danger)' }}
+                  onClick={() => removeUser(entry)}
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+          </td>
+        ) : null}
+      </tr>
+    ));
   };
 
   const toolName = (tool) => tool.name;
@@ -1175,69 +1017,86 @@ export function AdminView({ user, updatesCount = 0, onNavigate, toast }) {
               Add new user
             </button>
           </div>
-          <table className="a-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>LDAP</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Project</th>
-                <th>Level</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usersLoading ? (
+          <section className="a-user-section">
+            <div className="a-subhead">
+              <h3>Users not from Teamsphere</h3>
+              <span className="badge-sm muted">{nonTeamsphereUsers.length}</span>
+            </div>
+            <table className="a-table">
+              <thead>
                 <tr>
-                  <td colSpan="8">Loading users…</td>
+                  <th>Name</th>
+                  <th>LDAP</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Project</th>
+                  <th>Level</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
-              ) : users.length ? (
-                users.map((entry) => (
-                  <tr key={entry.id}>
-                    <td style={{ fontWeight: 700 }}>{entry.name}</td>
-                    <td>{entry.ldap}</td>
-                    <td>{entry.email}</td>
-                    <td>{entry.role}</td>
-                    <td>{entry.project}</td>
-                    <td>{entry.level}</td>
-                    <td>
-                      <span
-                        className={`badge-sm ${
-                          entry.status === 'Active'
-                            ? 'ok'
-                            : entry.status === 'Inactive'
-                            ? 'warn'
-                            : 'muted'
-                        }`}
-                      >
-                        {entry.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="a-actions">
-                        {entry.rawRole !== 'SUPER_ADMIN' ? (
-                          <button
-                            type="button"
-                            className="btn sm"
-                            style={{ color: 'var(--danger)' }}
-                            onClick={() => removeUser(entry)}
-                          >
-                            Remove
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
+              </thead>
+              <tbody>{renderUserRows(nonTeamsphereUsers, 'No users outside Teamsphere.')}</tbody>
+            </table>
+          </section>
+
+          <section className="a-user-section">
+            <div className="a-subhead">
+              <h3>Users from Teamsphere</h3>
+              <span className="badge-sm muted">{teamspherePaging.total}</span>
+            </div>
+            <table className="a-table">
+              <thead>
                 <tr>
-                  <td colSpan="8">No users yet.</td>
+                  <th>Name</th>
+                  <th>LDAP</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Project</th>
+                  <th>Level</th>
+                  <th>Status</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>{renderUserRows(teamsphereUsers, 'No Teamsphere users yet.', false)}</tbody>
+            </table>
+            <div className="a-pagination">
+              <span>
+                Page {teamspherePaging.page} of {teamspherePaging.total_pages} ·{' '}
+                {teamspherePaging.page_size} users per page
+              </span>
+              <div className="a-pagination-actions">
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={usersLoading || teamspherePaging.page <= 1}
+                  onClick={() => setTeamspherePage((current) => Math.max(1, current - 1))}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={
+                    usersLoading || teamspherePaging.page >= teamspherePaging.total_pages
+                  }
+                  onClick={() =>
+                    setTeamspherePage((current) =>
+                      Math.min(teamspherePaging.total_pages, current + 1)
+                    )
+                  }
+                >
+                  Next
+                </button>
+                <button
+                  type="button"
+                  className="btn sm"
+                  disabled={usersLoading}
+                  onClick={() => loadUsers()}
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </section>
         </div>
 
         <div className="a-panel" hidden={tab !== 'features'}>

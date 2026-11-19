@@ -6,6 +6,7 @@ class ResponseMessageConstants:
     USER_NOT_FOUND = "User not found."
     USERS_RETRIEVED = "Users retrieved."
     ADMIN_CREATED = "Admin created. They must reset their password at first login."
+    USER_CREATED = "User created. They must reset their password at first login."
     USER_UPDATED = "User updated."
     USER_DELETED = "User deleted."
     TOOL_CREATED = "Tool created successfully."
