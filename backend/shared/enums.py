@@ -11,3 +11,10 @@ class RoleType(str, Enum):
     HR = "HR"
     TA = "TA"
     CO_LEAD = "CO_LEAD"
+
+
+class AnnouncementType(str, Enum):
+    FEATURE_LAUNCH = "FEATURE_LAUNCH"
+    UPDATE = "UPDATE"
+    FIX = "FIX"
+    ANNOUNCEMENT = "ANNOUNCEMENT"

@@ -4,6 +4,7 @@ from sqlalchemy import inspect
 from core.database import SessionLocal
 from modules.auth.routes import router as auth_router
 from modules.auth.services import ensure_super_admin
+from modules.announcement.routes import router as announcement_router
 from modules.data_upload.routes import router as data_upload_router
 from modules.users.routes import router as user_router
 from shared.constants import ResponseMessageConstants
@@ -14,6 +15,7 @@ app = FastAPI()
 app.include_router(data_upload_router, tags=["Data upload"])
 app.include_router(auth_router, tags=["Authentication"])
 app.include_router(user_router, tags=["Users"])
+app.include_router(announcement_router, tags=["Announcements"])
 
 
 @app.on_event("startup")
