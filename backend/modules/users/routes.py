@@ -5,12 +5,20 @@ from core.database import get_db
 from modules.users.models import User
 from shared.constants import ResponseMessageConstants
 from shared.utils import generic_json_response
-from .schemas import AdminCreatePayload, ToolCreatePayload, ToolUpdatePayload, UserUpdatePayload
+from .schemas import (
+    AdminCreatePayload,
+    HomeUserCreatePayload,
+    ToolCreatePayload,
+    ToolUpdatePayload,
+    UserUpdatePayload,
+)
 from .services import (
     create_admin_service,
+    create_home_user_service,
     create_tool_service,
     delete_user_service,
-    list_admin_users_service,
+    list_non_teamsphere_users_service,
+    list_teamsphere_users_service,
     list_tools_service,
     list_users_service,
     replace_tool_service,
@@ -49,13 +57,64 @@ def list_users(
         )
 
 
-@router.get("/users/admins")
-def list_admin_users(
+@router.post("/users")
+def create_home_user(
+    payload: HomeUserCreatePayload,
     db: Session = Depends(get_db),
     _: User = Depends(require_super_admin),
 ):
     try:
-        data = list_admin_users_service(db)
+        data = create_home_user_service(db, payload)
+        return generic_json_response(
+            success=True,
+            status_code=201,
+            message=ResponseMessageConstants.USER_CREATED,
+            data=data,
+            error=None,
+        )
+    except HTTPException as exc:
+        return generic_json_response(
+            success=False,
+            status_code=exc.status_code,
+            message=str(exc.detail),
+            data=None,
+            error=str(exc.detail),
+        )
+
+
+@router.get("/users/teamsphere")
+def list_teamsphere_users(
+    search: str = Query(default="", max_length=255),
+    page: int = Query(default=1, ge=1),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    try:
+        data = list_teamsphere_users_service(db, search, page)
+        return generic_json_response(
+            success=True,
+            status_code=200,
+            message=ResponseMessageConstants.USERS_RETRIEVED,
+            data=data,
+            error=None,
+        )
+    except HTTPException as exc:
+        return generic_json_response(
+            success=False,
+            status_code=exc.status_code,
+            message=str(exc.detail),
+            data=None,
+            error=str(exc.detail),
+        )
+
+
+@router.get("/users/non-teamsphere")
+def list_non_teamsphere_users(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_super_admin),
+):
+    try:
+        data = list_non_teamsphere_users_service(db)
         return generic_json_response(
             success=True,
             status_code=200,

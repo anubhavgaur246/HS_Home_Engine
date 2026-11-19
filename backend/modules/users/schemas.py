@@ -23,6 +23,19 @@ class AdminCreatePayload(BaseModel):
         return email
 
 
+class HomeUserCreatePayload(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    role: RoleType
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value):
+        email = value.strip().lower()
+        if "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+            raise ValueError("Enter a valid email address")
+        return email
+
+
 class UserUpdatePayload(BaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     last_name: str | None = Field(default=None, max_length=100)

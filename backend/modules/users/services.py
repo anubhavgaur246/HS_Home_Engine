@@ -1,3 +1,5 @@
+import math
+
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import func, or_, select
@@ -7,9 +9,17 @@ from sqlalchemy.orm import Session
 from core.security import hash_password
 from modules.users.models import Tools, User
 from shared.enums import RoleType
-from .schemas import AdminCreatePayload, ToolCreatePayload, ToolUpdatePayload, UserUpdatePayload
+from .schemas import (
+    AdminCreatePayload,
+    HomeUserCreatePayload,
+    ToolCreatePayload,
+    ToolUpdatePayload,
+    UserUpdatePayload,
+)
 
 security = HTTPBearer()
+USER_PAGE_SIZE = 20
+TEMPORARY_PASSWORD = "temporary_password"
 
 
 def require_super_admin(
@@ -47,6 +57,8 @@ def serialize_user(user: User) -> dict:
         "projectname": user.projectname,
         "manager": user.manager,
         "lead": user.lead,
+        "from_teamsphere": bool(user.from_teamsphere),
+        "status": "Inactive" if user.deleted_at else "Active",
         "created_at": user.created_at,
     }
 
@@ -65,46 +77,97 @@ def serialize_tool(tool: Tools) -> dict:
     }
 
 
-def list_users_service(db: Session, search: str, page: int):
-    filters = []
+def _user_search_filters(search: str):
     search_term = search.strip()
-    if search_term:
-        pattern = f"%{search_term}%"
-        full_name = func.concat(User.first_name, " ", func.coalesce(User.last_name, ""))
-        filters.append(or_(
+    if not search_term:
+        return []
+
+    pattern = f"%{search_term}%"
+    full_name = func.concat(User.first_name, " ", func.coalesce(User.last_name, ""))
+    return [
+        or_(
             User.first_name.ilike(pattern),
             User.last_name.ilike(pattern),
             full_name.ilike(pattern),
             User.hs_email_id.ilike(pattern),
-        ))
+        )
+    ]
+
+
+def list_users_service(db: Session, search: str, page: int):
+    filters = _user_search_filters(search)
 
     total = db.scalar(select(func.count()).select_from(User).where(*filters)) or 0
-    page_size = 100
     users = db.scalars(
         select(User)
         .where(*filters)
         .order_by(User.id)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        .offset((page - 1) * USER_PAGE_SIZE)
+        .limit(USER_PAGE_SIZE)
     ).all()
     return {
         "users": [serialize_user(user) for user in users],
         "total": total,
         "page": page,
-        "page_size": page_size,
+        "page_size": USER_PAGE_SIZE,
     }
 
 
-def list_admin_users_service(db: Session):
+def list_teamsphere_users_service(db: Session, search: str, page: int):
+    filters = [User.from_teamsphere.is_(True), *_user_search_filters(search)]
+
+    total = db.scalar(select(func.count()).select_from(User).where(*filters)) or 0
     users = db.scalars(
         select(User)
-        .where(User.role.in_([RoleType.SUPER_ADMIN, RoleType.ADMIN]))
+        .where(*filters)
+        .order_by(User.id)
+        .offset((page - 1) * USER_PAGE_SIZE)
+        .limit(USER_PAGE_SIZE)
+    ).all()
+    return {
+        "users": [serialize_user(user) for user in users],
+        "total": total,
+        "page": page,
+        "page_size": USER_PAGE_SIZE,
+        "total_pages": max(1, math.ceil(total / USER_PAGE_SIZE)),
+    }
+
+
+def list_non_teamsphere_users_service(db: Session):
+    users = db.scalars(
+        select(User)
+        .where(User.from_teamsphere.is_(False))
         .order_by(User.id)
     ).all()
     return {
         "users": [serialize_user(user) for user in users],
         "total": len(users),
     }
+
+
+def create_home_user_service(db: Session, payload: HomeUserCreatePayload):
+    if payload.role == RoleType.SUPER_ADMIN:
+        raise HTTPException(status_code=400, detail="Cannot assign the super admin role")
+    if db.scalar(select(User.id).where(User.hs_email_id == payload.email)):
+        raise HTTPException(status_code=409, detail="A user with that email already exists")
+
+    user = User(
+        hs_email_id=payload.email,
+        password=hash_password(TEMPORARY_PASSWORD),
+        first_name=payload.email.split("@", 1)[0][:100] or "User",
+        role=payload.role,
+        from_teamsphere=False,
+        is_password_reset_required=True,
+    )
+    db.add(user)
+    try:
+        db.commit()
+        db.refresh(user)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A user with that email already exists") from exc
+
+    return serialize_user(user)
 
 
 def create_admin_service(db: Session, payload: AdminCreatePayload):
