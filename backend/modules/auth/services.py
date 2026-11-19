@@ -36,6 +36,7 @@ def create_access_token(user: User, *, reset_password: bool = False) -> str:
     payload = _token_part({
         "sub": str(user.id),
         "email": user.hs_email_id,
+        "ldap": user.ldap,
         "role": user.role.value,
         "level": user.level,
         "team": user.team,

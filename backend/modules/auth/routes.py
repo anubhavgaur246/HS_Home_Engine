@@ -104,6 +104,7 @@ def login(payload: LoginPayload, db: Session = Depends(get_db)):
             data={
                 "access_token": create_access_token(user),
                 "email": user.hs_email_id,
+                "ldap": user.ldap,
                 "role": user.role.value,
                 "level": user.level,
                 "team": user.team,
@@ -146,6 +147,7 @@ def reset_password(payload: ResetPasswordPayload, db: Session = Depends(get_db))
             message=ResponseMessageConstants.PASSWORD_RESET_SUCCESSFULLY,
             data={
                 "email": user.hs_email_id,
+                "ldap": user.ldap,
                 "role": user.role.value,
                 "level": user.level,
                 "team": user.team,
