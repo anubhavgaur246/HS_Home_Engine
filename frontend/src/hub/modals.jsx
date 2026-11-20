@@ -978,10 +978,12 @@ export function DemoModal({ open, onClose, onBooked }) {
 // ---------------------------------------------------------------------------
 // Post an update
 // ---------------------------------------------------------------------------
-export function PostModal({ open, onClose, user, onPublish }) {
+export function PostModal({ open, onClose, user, initialPost, onPublish }) {
   const [type, setType] = useState('Feature launch');
-  const [tool, setTool] = useState('teamsphere');
+  const [tool, setTool] = useState(TOOLS[0]?.id || HUB.id);
   const [date, setDate] = useState(iso(new Date()));
+  const [emailSubject, setEmailSubject] = useState('');
+  const [cc, setCc] = useState('');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [body, setBody] = useState('');
@@ -992,10 +994,19 @@ export function PostModal({ open, onClose, user, onPublish }) {
 
   useEffect(() => {
     if (open) {
-      setDate(iso(new Date()));
+      setType(initialPost?.type || 'Feature launch');
+      setTool(initialPost?.tool || TOOLS[0]?.id || HUB.id);
+      setDate(initialPost?.date || iso(new Date()));
+      setEmailSubject(initialPost?.emailSubject || '');
+      setCc((initialPost?.cc || []).join(', '));
+      setTitle(initialPost?.title || '');
+      setSummary(initialPost?.summary || '');
+      setBody((initialPost?.body || []).join('\n\n'));
+      setCover(null);
+      setDoc(null);
       setErrors({});
     }
-  }, [open]);
+  }, [open, initialPost]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -1006,58 +1017,24 @@ export function PostModal({ open, onClose, user, onPublish }) {
     setErrors(err);
     if (Object.keys(err).length) return;
     setBusy(true);
-    let coverURL = null;
-    if (cover?.dataURL) {
-      coverURL = await new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          const w = Math.min(1200, img.width);
-          const h = Math.round((img.height * w) / img.width);
-          const c = document.createElement('canvas');
-          c.width = w;
-          c.height = h;
-          c.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(c.toDataURL('image/jpeg', 0.8));
-        };
-        img.onerror = () => resolve(null);
-        img.src = cover.dataURL;
-      });
-    }
-    const id = 'p' + Date.now().toString(36);
-    const post = {
-      id,
-      ts: Date.now(),
+    const saved = await onPublish({
       tool,
       type,
       date: date || iso(new Date()),
-      author: user.name,
-      role: user.role,
+      emailSubject,
+      cc,
       title: title.trim(),
       summary: summary.trim(),
-      body: body
-        .trim()
-        .split(/\n\s*\n/)
-        .map((s) => s.trim())
-        .filter(Boolean),
-      cover: coverURL,
-      doc: doc ? { name: doc.file.name, size: doc.size } : null,
-    };
-    await sleep(500);
+      body: body.trim(),
+    }, cover?.file || null, doc?.file || null, initialPost?.id);
     setBusy(false);
-    const ok = onPublish(post, doc?.file || null);
+    if (!saved) return;
     onClose();
-    setTitle('');
-    setSummary('');
-    setBody('');
-    setCover(null);
-    setDoc(null);
-    setType('Feature launch');
-    setTool('teamsphere');
   };
 
   return (
     <Modal open={open} onClose={onClose} className="post-modal" labelledBy="postTitle">
-      <h2 id="postTitle">Post an update</h2>
+      <h2 id="postTitle">{initialPost ? 'Edit update' : 'Post an update'}</h2>
       <p className="lead">Share a feature launch or update. It goes to the top of What’s new for everyone.</p>
       <form className="form" onSubmit={submit} noValidate>
         <div className="full">
@@ -1074,6 +1051,14 @@ export function PostModal({ open, onClose, user, onPublish }) {
               </button>
             ))}
           </div>
+        </div>
+        <div className="ff full no-ic">
+          <input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder=" " maxLength={255} />
+          <label>Email subject line</label>
+        </div>
+        <div className="ff full no-ic">
+          <input value={cc} onChange={(e) => setCc(e.target.value)} placeholder=" " />
+          <label>CC (comma-separated emails)</label>
         </div>
         <div className="ff">
           <select value={tool} onChange={(e) => setTool(e.target.value)}>
@@ -1115,9 +1100,12 @@ export function PostModal({ open, onClose, user, onPublish }) {
           <p className="err">Describe the update.</p>
         </div>
         <div>
-          <span className="lbl">Cover image</span>
+          <span className="lbl">Cover image (optional)</span>
+          {initialPost?.cover && (
+            <p><a href={initialPost.cover} target="_blank" rel="noopener">View current cover image</a></p>
+          )}
           <Drop
-            accept="image/*"
+            accept=".jpg,.jpeg,.png,.webp"
             kind="image"
             defaultValue={['Upload an image', 'PNG or JPG, shown at the top']}
             value={cover}
@@ -1125,7 +1113,10 @@ export function PostModal({ open, onClose, user, onPublish }) {
           />
         </div>
         <div>
-          <span className="lbl">Attach a document</span>
+          <span className="lbl">Attach a document (optional)</span>
+          {initialPost?.docURL && (
+            <p><a href={initialPost.docURL} target="_blank" rel="noopener">View current attachment</a></p>
+          )}
           <Drop
             accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md"
             kind="doc"
@@ -1138,7 +1129,7 @@ export function PostModal({ open, onClose, user, onPublish }) {
           <small>Posting as {user?.name}, {user?.role}</small>
           <button className={`btn primary${busy ? ' loading' : ''}`} style={{ minHeight: 52, padding: '0 26px' }} type="submit" disabled={busy}>
             <span className="spinner"></span>
-            <span className="btn-label">Publish update</span>
+            <span className="btn-label">{initialPost ? 'Save changes' : 'Publish update'}</span>
             <Raw html={ARROW} />
           </button>
         </div>

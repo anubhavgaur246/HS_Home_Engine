@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+import logging
 
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -12,9 +13,35 @@ from shared.enums import RoleType
 
 from .models import Announcement
 from .schemas import AnnouncementCreate, AnnouncementUpdate
+from .storage import announcement_media_url
+from shared.utils import EmailUtils
 
 security = HTTPBearer()
 PUBLISHER_ROLES = {RoleType.MANAGER, RoleType.LEAD}
+logger = logging.getLogger(__name__)
+
+
+def send_announcement_notification(
+    announcement_id: int,
+    to_email: str,
+    recipients: list[str],
+    subject: str,
+    body: str,
+) -> None:
+    if not recipients:
+        return
+    try:
+        EmailUtils.send_email(
+            to_email=to_email,
+            subject=subject,
+            body=body,
+            cc=recipients,
+        )
+    except Exception:
+        logger.exception(
+            "Could not send announcement %s notification to CC recipients",
+            announcement_id,
+        )
 
 
 def require_announcement_publisher(
@@ -61,8 +88,8 @@ def serialize_announcement(announcement: Announcement, *, include_private: bool 
         "title": announcement.title,
         "summary": announcement.summary,
         "description": announcement.description,
-        "image_url": announcement.image_url,
-        "document_url": announcement.document_url,
+        "image_url": announcement_media_url(announcement.image_url),
+        "document_url": announcement_media_url(announcement.document_url),
         "posted_by": {
             "id": poster.id,
             "name": " ".join(part for part in (poster.first_name, poster.last_name) if part),
@@ -151,6 +178,12 @@ def get_announcement_for_publisher(db: Session, announcement_id: int):
         _get_active_announcement(db, announcement_id),
         include_private=True,
     )
+
+
+def get_announcement_for_editor(db: Session, announcement_id: int, actor: User):
+    announcement = _get_active_announcement(db, announcement_id)
+    _require_owner(announcement, actor)
+    return serialize_announcement(announcement, include_private=True)
 
 
 def update_announcement(

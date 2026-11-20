@@ -108,3 +108,37 @@ export const allUpdates = (posts = []) =>
   [...posts].sort(
     (a, b) => b.date.localeCompare(a.date) || (b.ts || 0) - (a.ts || 0)
   );
+
+const ANNOUNCEMENT_TYPES = {
+  FEATURE_LAUNCH: 'Feature launch',
+  UPDATE: 'Update',
+  FIX: 'Fix',
+  ANNOUNCEMENT: 'Announcement',
+};
+
+export const mapApiAnnouncements = (announcements = []) =>
+  announcements.map((announcement) => ({
+    id: String(announcement.id),
+    ts: Date.parse(announcement.created_at || '') || 0,
+    tool: announcement.tool ? `tool-${announcement.tool.id}` : 'hub',
+    toolId: announcement.tool?.id || null,
+    type: ANNOUNCEMENT_TYPES[announcement.type] || announcement.type,
+    rawType: announcement.type,
+    date: announcement.publish_date,
+    author: announcement.posted_by?.name || 'Highspring',
+    role: 'Highspring',
+    title: announcement.title,
+    summary: announcement.summary,
+    body: String(announcement.description || '')
+      .split(/\n\s*\n/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean),
+    cover: announcement.image_url || null,
+    doc: announcement.document_url
+      ? { name: 'Announcement attachment', size: '' }
+      : null,
+    docURL: announcement.document_url || null,
+    postedById: announcement.posted_by?.id,
+    emailSubject: announcement.email_subject || '',
+    cc: announcement.cc || [],
+  }));

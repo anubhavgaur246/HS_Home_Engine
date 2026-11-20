@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -8,15 +8,42 @@ from .schemas import AnnouncementCreate, AnnouncementUpdate
 from .services import (
     create_announcement,
     delete_announcement,
+    get_announcement_for_editor,
     get_public_announcement,
     list_public_announcements,
     require_announcement_publisher,
+    send_announcement_notification,
     update_announcement,
 )
+from .storage import download_announcement_file, upload_announcement_file
 from modules.users.models import User
 
 
 router = APIRouter(prefix="/announcements")
+
+
+def _schedule_announcement_notification(background_tasks: BackgroundTasks, data: dict, actor: User) -> None:
+    recipients = data.get("cc") or []
+    if not recipients:
+        return
+
+    publish_date = data["publish_date"]
+    if hasattr(publish_date, "isoformat"):
+        publish_date = publish_date.isoformat()
+    body = (
+        f"{data['title']}\n\n"
+        f"{data['summary']}\n\n"
+        f"{data['description']}\n\n"
+        f"Publish date: {publish_date}"
+    )
+    background_tasks.add_task(
+        send_announcement_notification,
+        data["id"],
+        actor.hs_email_id,
+        recipients,
+        data.get("email_subject") or data["title"],
+        body,
+    )
 
 
 @router.get("")
@@ -30,19 +57,61 @@ def list_announcements(
     return generic_json_response(True, 200, "Announcements retrieved", data, None)
 
 
+@router.post("/media", status_code=201)
+async def upload_announcement_media(
+    file: UploadFile = File(...),
+    kind: str = Form(...),
+    actor: User = Depends(require_announcement_publisher),
+):
+    media_ref = await upload_announcement_file(file, kind)
+    return generic_json_response(
+        True,
+        201,
+        "Announcement attachment uploaded",
+        {"object_ref": media_ref},
+        None,
+    )
+
+
+@router.get("/media/{object_name:path}")
+def get_announcement_media(object_name: str):
+    content, content_type = download_announcement_file(object_name)
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "public, max-age=300",
+            "Content-Disposition": "inline",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/{announcement_id}")
 def get_announcement(announcement_id: int, db: Session = Depends(get_db)):
     data = get_public_announcement(db, announcement_id)
     return generic_json_response(True, 200, "Announcement retrieved", data, None)
 
 
+@router.get("/{announcement_id}/manage")
+def get_announcement_for_edit(
+    announcement_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_announcement_publisher),
+):
+    data = get_announcement_for_editor(db, announcement_id, actor)
+    return generic_json_response(True, 200, "Announcement retrieved", data, None)
+
+
 @router.post("", status_code=201)
 def post_announcement(
     payload: AnnouncementCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     actor: User = Depends(require_announcement_publisher),
 ):
     data = create_announcement(db, payload, actor)
+    _schedule_announcement_notification(background_tasks, data, actor)
     return generic_json_response(True, 201, "Announcement created", data, None)
 
 
@@ -50,10 +119,12 @@ def post_announcement(
 def patch_announcement(
     announcement_id: int,
     payload: AnnouncementUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     actor: User = Depends(require_announcement_publisher),
 ):
     data = update_announcement(db, announcement_id, payload, actor)
+    _schedule_announcement_notification(background_tasks, data, actor)
     return generic_json_response(True, 200, "Announcement updated", data, None)
 
 

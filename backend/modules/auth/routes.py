@@ -102,6 +102,7 @@ def login(payload: LoginPayload, db: Session = Depends(get_db)):
             status_code=200,
             message=ResponseMessageConstants.LOGIN_SUCCESSFULL,
             data={
+                "id": user.id,
                 "access_token": create_access_token(user),
                 "email": user.hs_email_id,
                 "ldap": user.ldap,
@@ -146,6 +147,7 @@ def reset_password(payload: ResetPasswordPayload, db: Session = Depends(get_db))
             status_code=200,
             message=ResponseMessageConstants.PASSWORD_RESET_SUCCESSFULLY,
             data={
+                "id": user.id,
                 "email": user.hs_email_id,
                 "ldap": user.ldap,
                 "role": user.role.value,

@@ -30,6 +30,7 @@ import {
   first,
   fmt,
   iso,
+  mapApiAnnouncements,
   setApiTools,
 } from './hub/data';
 
@@ -57,9 +58,10 @@ const prettifyName = (email = '') =>
 
 const mapBackendUser = (data) => {
   const email = data.email || '';
-  const rawRole = data.role || 'USER';
-  const canPost = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD', 'CO_LEAD'].includes(rawRole);
+  const rawRole = String(data.role || 'USER').toUpperCase();
+  const canPost = ['MANAGER', 'LEAD'].includes(rawRole);
   return {
+    id: data.id,
     email,
     name: prettifyName(email),
     role: ROLE_LABEL[rawRole] || rawRole,
@@ -83,12 +85,16 @@ const loadUser = () => {
     if (raw) {
       const u = JSON.parse(raw);
       if (u && u.email) {
+        const mapped = mapBackendUser({
+          email: u.email,
+          role: u.rawRole || u.role,
+          access_token: u.token,
+        });
         return {
-          name: prettifyName(u.email),
-          role: u.role || 'Employee',
-          canPost: !!u.canPost,
-          isAdmin: !!u.isAdmin,
+          ...mapped,
           ...u,
+          canPost: mapped.canPost,
+          isAdmin: mapped.isAdmin,
         };
       }
     }
@@ -148,13 +154,8 @@ export function App() {
     window.location.hash = target;
   };
 
-  const [posts, setPosts] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('hs_posts') || '[]');
-    } catch (e) {
-      return [];
-    }
-  });
+  const [posts, setPosts] = useState([]);
+  const [editingPost, setEditingPost] = useState(null);
   const [notify, setNotify] = useState(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem('hs_notify') || '[]'));
@@ -171,8 +172,8 @@ export function App() {
   const [assistantAsk, setAssistantAsk] = useState(null);
   const [toolTab, setToolTab] = useState('ready');
   const [filters, setFilters] = useState({ tool: 'all', from: '', to: '' });
-  const [docURLs, setDocURLs] = useState({});
   const [toasts, setToasts] = useState([]);
+  const [announcementError, setAnnouncementError] = useState('');
 
   useEffect(() => {
     if (authLink) window.history.replaceState({}, '', `${pathname}${window.location.hash}`);
@@ -200,9 +201,7 @@ export function App() {
     sessionStorage.setItem('hs-user-manager', result.manager || '');
     sessionStorage.setItem('hs-user-lead', result.lead || '');
     setUser({
-      token: result.access_token,
-      email: result.email,
-      role: result.role || '',
+      ...mapBackendUser(result),
       level: result.level || '',
       team: result.team || '',
       programme_name: result.programme_name || '',
@@ -216,6 +215,7 @@ export function App() {
   const openModal = (id) => setModal(id);
   const closeModal = () => {
     setModal(null);
+    setEditingPost(null);
     setAuthLink(null);
   };
 
@@ -453,40 +453,119 @@ export function App() {
     toast('Logged out');
   };
 
-  const openPost = () => {
+  const openPost = (post = null) => {
     if (!user || !user.canPost) {
       toast('Only managers and leads can post updates');
       return;
     }
+    setEditingPost(post);
     setModal('post');
   };
 
-  const publish = (post, docFile) => {
-    const next = [post, ...posts];
-    setPosts(next);
-    if (docFile) {
-      const url = URL.createObjectURL(docFile);
-      setDocURLs((d) => ({ ...d, [post.id]: url }));
-    }
-    let ok = true;
+  const publish = async (draft, coverFile, documentFile, editingId) => {
     try {
-      localStorage.setItem('hs_posts', JSON.stringify(next));
-    } catch (e) {
-      ok = false;
-      const fallback = next.map((p) => (p.id === post.id ? { ...p, cover: null } : p));
-      try {
-        localStorage.setItem('hs_posts', JSON.stringify(fallback));
-        setPosts(fallback);
-      } catch (e2) {
-        /* noop */
+      const headers = { Authorization: `Bearer ${user.token}` };
+      const upload = async (file, kind) => {
+        if (!file) return null;
+        const form = new FormData();
+        form.append('file', file);
+        form.append('kind', kind);
+        const response = await fetch('/api/announcements/media', {
+          method: 'POST',
+          headers,
+          body: form,
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result?.success === false) {
+          throw new Error(result?.message || `Unable to upload ${kind}`);
+        }
+        return result.data.object_ref;
+      };
+      const payload = {
+        type: {
+          'Feature launch': 'FEATURE_LAUNCH',
+          Update: 'UPDATE',
+          Fix: 'FIX',
+          Announcement: 'ANNOUNCEMENT',
+        }[draft.type],
+        email_subject: draft.emailSubject.trim() || null,
+        cc: draft.cc
+          .split(',')
+          .map((email) => email.trim())
+          .filter(Boolean),
+        tool_id: draft.tool === 'hub' ? null : T[draft.tool]?.apiId || null,
+        publish_date: draft.date,
+        title: draft.title,
+        summary: draft.summary,
+        description: draft.body,
+      };
+      const imageRef = await upload(coverFile, 'image');
+      const documentRef = await upload(documentFile, 'document');
+      if (imageRef) payload.image_url = imageRef;
+      if (documentRef) payload.document_url = documentRef;
+
+      const response = await fetch(
+        editingId ? `/api/announcements/${editingId}` : '/api/announcements',
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.message || 'Unable to save the update');
       }
+      const saved = mapApiAnnouncements([result.data])[0];
+      const isPublished = saved.date <= iso(new Date());
+      setPosts((current) => {
+        const remaining = current.filter((item) => item.id !== saved.id);
+        return isPublished ? [saved, ...remaining] : remaining;
+      });
+      setAnnouncementError('');
+      toast(editingId ? 'Update saved' : isPublished ? 'Update published' : 'Update scheduled');
+      if (isPublished) navigate(`update-${saved.id}`);
+      else navigate('whats-new');
+      return true;
+    } catch (error) {
+      toast(error.message || 'Unable to save the update');
+      return false;
     }
-    navigate('update-' + post.id);
-    toast(
-      ok
-        ? 'Update published to What’s new'
-        : 'Published. The cover image is too large to keep after a reload.'
-    );
+  };
+
+  const editAnnouncement = async (post) => {
+    try {
+      const response = await fetch(`/api/announcements/${post.id}/manage`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.message || 'Unable to open this update for editing');
+      }
+      setEditingPost(mapApiAnnouncements([result.data])[0]);
+      setModal('post');
+    } catch (error) {
+      toast(error.message || 'Unable to open this update for editing');
+    }
+  };
+
+  const deleteAnnouncement = async (post) => {
+    if (!window.confirm(`Delete “${post.title}”?`)) return;
+    try {
+      const response = await fetch(`/api/announcements/${post.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result?.success === false) {
+        throw new Error(result?.message || 'Unable to delete this update');
+      }
+      setPosts((current) => current.filter((item) => item.id !== post.id));
+      navigate('whats-new');
+      toast('Update deleted');
+    } catch (error) {
+      toast(error.message || 'Unable to delete this update');
+    }
   };
 
   useEffect(() => {
@@ -537,12 +616,40 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('hs_posts', JSON.stringify(posts));
-    } catch (e) {
-      /* noop */
-    }
-  }, [posts]);
+    let cancelled = false;
+    const loadAnnouncements = async () => {
+      try {
+        const announcements = [];
+        let offset = 0;
+        let total = Infinity;
+        while (offset < total) {
+          const response = await fetch(`/api/announcements?offset=${offset}&limit=100`);
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || result?.success === false) {
+            throw new Error(result?.message || 'Unable to load updates');
+          }
+          const page = result?.data?.announcements || [];
+          announcements.push(...page);
+          total = Number(result?.data?.total) || 0;
+          offset += page.length;
+          if (!page.length) break;
+        }
+        if (!cancelled) {
+          setPosts(mapApiAnnouncements(announcements));
+          setAnnouncementError('');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPosts([]);
+          setAnnouncementError(error.message || 'Unable to load updates');
+        }
+      }
+    };
+    loadAnnouncements();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -786,6 +893,7 @@ export function App() {
             <NewsPage
               updates={updates}
               user={user}
+              error={announcementError}
               filters={filters}
               setFilters={setFilters}
               onPost={openPost}
@@ -795,11 +903,10 @@ export function App() {
             <ArticlePage
               update={article}
               updates={updates}
-              docURLs={docURLs}
               onOpenTool={tryOpen}
-              onMissingDoc={() =>
-                toast('This prototype keeps attachments only until the page reloads')
-              }
+              canManageUpdate={!!user?.canPost && String(user.id) === String(article?.postedById)}
+              onEdit={() => editAnnouncement(article)}
+              onDelete={() => deleteAnnouncement(article)}
             />
           ) : (
             <HomeView
@@ -834,7 +941,13 @@ export function App() {
         authLink={authLink}
       />
       <DemoModal open={modal === 'demo'} onClose={closeModal} onBooked={() => toast('Demo booked')} />
-      <PostModal open={modal === 'post'} onClose={closeModal} user={user} onPublish={publish} />
+      <PostModal
+        open={modal === 'post'}
+        onClose={closeModal}
+        user={user}
+        initialPost={editingPost}
+        onPublish={publish}
+      />
       <BugModal
         open={modal === 'bug'}
         onClose={closeModal}

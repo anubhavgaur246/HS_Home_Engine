@@ -1,6 +1,6 @@
 from email.message import EmailMessage
 import smtplib
-from typing import Any
+from typing import Any, Sequence
 
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -15,6 +15,7 @@ class EmailUtils:
         subject: str,
         body: str,
         html_body: str | None = None,
+        cc: Sequence[str] | None = None,
     ) -> None:
         if not settings.SMTP_HOST or not settings.SMTP_FROM_EMAIL:
             raise RuntimeError("SMTP_HOST and SMTP_FROM_EMAIL must be configured")
@@ -23,6 +24,8 @@ class EmailUtils:
         message["Subject"] = subject
         message["From"] = settings.SMTP_FROM_EMAIL
         message["To"] = to_email
+        if cc:
+            message["Cc"] = ", ".join(cc)
         message.set_content(body)
         if html_body:
             message.add_alternative(html_body, subtype="html")
