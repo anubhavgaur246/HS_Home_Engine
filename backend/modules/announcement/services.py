@@ -21,21 +21,18 @@ PUBLISHER_ROLES = {RoleType.MANAGER, RoleType.LEAD}
 logger = logging.getLogger(__name__)
 
 
-def _send_announcement_notification(announcement: Announcement, actor: User) -> None:
-    recipients = announcement.cc or []
+def send_announcement_notification(
+    announcement_id: int,
+    to_email: str,
+    recipients: list[str],
+    subject: str,
+    body: str,
+) -> None:
     if not recipients:
         return
-
-    subject = announcement.email_subject or announcement.title
-    body = (
-        f"{announcement.title}\n\n"
-        f"{announcement.summary}\n\n"
-        f"{announcement.description}\n\n"
-        f"Publish date: {announcement.publish_date.isoformat()}"
-    )
     try:
         EmailUtils.send_email(
-            to_email=actor.hs_email_id,
+            to_email=to_email,
             subject=subject,
             body=body,
             cc=recipients,
@@ -43,7 +40,7 @@ def _send_announcement_notification(announcement: Announcement, actor: User) -> 
     except Exception:
         logger.exception(
             "Could not send announcement %s notification to CC recipients",
-            announcement.id,
+            announcement_id,
         )
 
 
@@ -156,7 +153,6 @@ def create_announcement(db: Session, payload: AnnouncementCreate, actor: User):
     )
     db.add(announcement)
     db.commit()
-    _send_announcement_notification(announcement, actor)
     return get_announcement_for_publisher(db, announcement.id)
 
 
@@ -209,7 +205,6 @@ def update_announcement(
     for field, value in changes.items():
         setattr(announcement, field, value)
     db.commit()
-    _send_announcement_notification(announcement, actor)
     return get_announcement_for_publisher(db, announcement_id)
 
 

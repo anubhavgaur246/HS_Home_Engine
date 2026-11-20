@@ -1,39 +1,56 @@
 import unittest
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from modules.announcement.services import _send_announcement_notification
+from modules.announcement.routes import _schedule_announcement_notification
+from modules.announcement.services import send_announcement_notification
 
 
 class AnnouncementEmailTests(unittest.TestCase):
-    def test_sends_announcement_to_publisher_and_cc_recipients(self):
-        announcement = SimpleNamespace(
-            id=5,
-            cc=["person@example.test"],
-            email_subject="Announcement subject",
-            title="Announcement title",
-            summary="Short summary",
-            description="Announcement details",
-            publish_date=date(2026, 11, 20),
-        )
+    def test_schedules_announcement_for_publisher_and_cc_recipients(self):
+        data = {
+            "id": 5,
+            "cc": ["person@example.test"],
+            "email_subject": "Announcement subject",
+            "title": "Announcement title",
+            "summary": "Short summary",
+            "description": "Announcement details",
+            "publish_date": date(2026, 11, 20),
+        }
         actor = SimpleNamespace(hs_email_id="publisher@example.test")
+        background_tasks = SimpleNamespace(add_task=Mock())
 
-        with patch("modules.announcement.services.EmailUtils.send_email") as send_email:
-            _send_announcement_notification(announcement, actor)
+        _schedule_announcement_notification(background_tasks, data, actor)
 
-        send_email.assert_called_once()
-        kwargs = send_email.call_args.kwargs
-        self.assertEqual(kwargs["to_email"], "publisher@example.test")
-        self.assertEqual(kwargs["cc"], ["person@example.test"])
-        self.assertEqual(kwargs["subject"], "Announcement subject")
-        self.assertIn("Announcement details", kwargs["body"])
+        background_tasks.add_task.assert_called_once()
+        args = background_tasks.add_task.call_args.args
+        self.assertEqual(args[0], send_announcement_notification)
+        self.assertEqual(args[1:4], (5, "publisher@example.test", ["person@example.test"]))
+        self.assertEqual(args[4], "Announcement subject")
+        self.assertIn("Announcement details", args[5])
 
     def test_skips_notification_without_cc_recipients(self):
-        announcement = SimpleNamespace(cc=[])
+        background_tasks = SimpleNamespace(add_task=Mock())
+        _schedule_announcement_notification(background_tasks, {"cc": []}, SimpleNamespace())
+        background_tasks.add_task.assert_not_called()
+
+    def test_background_sender_sends_message(self):
         with patch("modules.announcement.services.EmailUtils.send_email") as send_email:
-            _send_announcement_notification(announcement, SimpleNamespace())
-        send_email.assert_not_called()
+            send_announcement_notification(
+                5,
+                "publisher@example.test",
+                ["person@example.test"],
+                "Subject",
+                "Body",
+            )
+
+        send_email.assert_called_once_with(
+            to_email="publisher@example.test",
+            subject="Subject",
+            body="Body",
+            cc=["person@example.test"],
+        )
 
 
 if __name__ == "__main__":

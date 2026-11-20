@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -12,6 +12,7 @@ from .services import (
     get_public_announcement,
     list_public_announcements,
     require_announcement_publisher,
+    send_announcement_notification,
     update_announcement,
 )
 from .storage import download_announcement_file, upload_announcement_file
@@ -19,6 +20,30 @@ from modules.users.models import User
 
 
 router = APIRouter(prefix="/announcements")
+
+
+def _schedule_announcement_notification(background_tasks: BackgroundTasks, data: dict, actor: User) -> None:
+    recipients = data.get("cc") or []
+    if not recipients:
+        return
+
+    publish_date = data["publish_date"]
+    if hasattr(publish_date, "isoformat"):
+        publish_date = publish_date.isoformat()
+    body = (
+        f"{data['title']}\n\n"
+        f"{data['summary']}\n\n"
+        f"{data['description']}\n\n"
+        f"Publish date: {publish_date}"
+    )
+    background_tasks.add_task(
+        send_announcement_notification,
+        data["id"],
+        actor.hs_email_id,
+        recipients,
+        data.get("email_subject") or data["title"],
+        body,
+    )
 
 
 @router.get("")
@@ -81,10 +106,12 @@ def get_announcement_for_edit(
 @router.post("", status_code=201)
 def post_announcement(
     payload: AnnouncementCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     actor: User = Depends(require_announcement_publisher),
 ):
     data = create_announcement(db, payload, actor)
+    _schedule_announcement_notification(background_tasks, data, actor)
     return generic_json_response(True, 201, "Announcement created", data, None)
 
 
@@ -92,10 +119,12 @@ def post_announcement(
 def patch_announcement(
     announcement_id: int,
     payload: AnnouncementUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     actor: User = Depends(require_announcement_publisher),
 ):
     data = update_announcement(db, announcement_id, payload, actor)
+    _schedule_announcement_notification(background_tasks, data, actor)
     return generic_json_response(True, 200, "Announcement updated", data, None)
 
 
