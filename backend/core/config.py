@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     SMTP_USE_TLS: bool = True
     FRONTEND_BASE_URL: str = "http://localhost:5173"
     ASSESSMENT_TEST_URL: str = "http://localhost:5174/"
+    ANNOUNCEMENT_MEDIA_BUCKET: str | None = None
 
     class Config:
         env_file = ".env"

@@ -26,12 +26,32 @@ class SendEmailTests(unittest.TestCase):
         smtp.login.assert_called_once_with("smtp-user", "smtp-password")
         sent_message = smtp.send_message.call_args.args[0]
         self.assertEqual(sent_message["To"], "recipient@example.test")
+        self.assertIsNone(sent_message["Cc"])
         self.assertEqual(sent_message["From"], "sender@example.test")
         self.assertEqual(sent_message["Subject"], "Subject")
         plain_part = sent_message.get_body(preferencelist=("plain",))
         self.assertEqual(plain_part.get_content().strip(), "Message body")
         html_part = sent_message.get_body(preferencelist=("html",))
         self.assertIn("<p>HTML body</p>", html_part.get_content())
+
+    @patch("shared.utils.settings.SMTP_HOST", "smtp.example.test")
+    @patch("shared.utils.settings.SMTP_FROM_EMAIL", "sender@example.test")
+    @patch("shared.utils.settings.SMTP_USERNAME", None)
+    @patch("shared.utils.settings.SMTP_USE_TLS", False)
+    def test_sends_cc_header_and_delivers_to_cc_recipients(self):
+        with patch("shared.utils.smtplib.SMTP") as smtp_factory:
+            smtp = smtp_factory.return_value.__enter__.return_value
+            EmailUtils.send_email(
+                "publisher@example.test",
+                "Announcement",
+                "Details",
+                cc=["first@example.test", "second@example.test"],
+            )
+
+        sent_message = smtp.send_message.call_args.args[0]
+        self.assertEqual(sent_message["To"], "publisher@example.test")
+        self.assertEqual(sent_message.get_all("Cc"), ["first@example.test, second@example.test"])
+        smtp.send_message.assert_called_once()
 
     @patch("shared.utils.settings.SMTP_HOST", None)
     @patch("shared.utils.settings.SMTP_FROM_EMAIL", "sender@example.test")

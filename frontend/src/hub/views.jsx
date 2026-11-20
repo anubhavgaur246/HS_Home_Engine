@@ -697,6 +697,7 @@ export function HomeView({
 export function NewsPage({
   updates,
   user,
+  error,
   filters,
   setFilters,
   onPost,
@@ -707,7 +708,6 @@ export function NewsPage({
   const filtering = filters.tool !== 'all' || filters.from || filters.to;
   const list = updates.filter(
     (u) =>
-      (filtering || u.id !== top?.id) &&
       (filters.tool === 'all' || u.tool === filters.tool) &&
       (!filters.from || u.date >= filters.from) &&
       (!filters.to || u.date <= filters.to)
@@ -826,6 +826,7 @@ export function NewsPage({
           </div>
         </div>
 
+        {error && <p className="result-count" role="alert">{error}</p>}
         <p className="result-count" aria-live="polite">
           {filtering
             ? `${list.length} update${list.length === 1 ? '' : 's'} match your filters`
@@ -874,7 +875,7 @@ export function NewsPage({
   );
 }
 
-export function ArticlePage({ update, updates, docURLs, onOpenTool, onMissingDoc }) {
+export function ArticlePage({ update, updates, canManageUpdate, onEdit, onDelete, onOpenTool }) {
   if (!update) {
     return (
       <div className="page">
@@ -906,6 +907,12 @@ export function ArticlePage({ update, updates, docURLs, onOpenTool, onMissingDoc
               <Raw html={BACK} />
               All updates
             </a>
+            {canManageUpdate && (
+              <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                <button className="btn" type="button" onClick={onEdit}>Edit update</button>
+                <button className="btn" type="button" onClick={onDelete}>Delete update</button>
+              </div>
+            )}
             <a className="btn icon-only" href="#top" aria-label="Back to home" title="Back to home">
               <Raw html={HOME} />
             </a>
@@ -942,15 +949,11 @@ export function ArticlePage({ update, updates, docURLs, onOpenTool, onMissingDoc
                 {update.doc.name}
                 <small>{update.doc.size}</small>
               </span>
-              {docURLs[update.id] ? (
-                <a className="btn sm" href={docURLs[update.id]} download={update.doc.name}>
+              {update.docURL ? (
+                <a className="btn sm" href={update.docURL} target="_blank" rel="noopener">
                   Download
                 </a>
-              ) : (
-                <button className="btn sm" type="button" onClick={() => onMissingDoc?.()}>
-                  Download
-                </button>
-              )}
+              ) : null}
             </div>
           )}
           {tool && !tool.soon && update.tool !== 'hub' && (

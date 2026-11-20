@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
+from core.config import settings
 from shared.enums import AnnouncementType
 
 
@@ -48,10 +49,17 @@ class AnnouncementCreate(BaseModel):
     def validate_media_url(cls, value):
         if value is None or not value.strip():
             return None
-        parsed = urlparse(value.strip())
+        value = value.strip()
+        bucket = settings.ANNOUNCEMENT_MEDIA_BUCKET
+        if bucket and value.startswith(f"gs://{bucket}/announcements/"):
+            object_name = value.removeprefix(f"gs://{bucket}/")
+            if ".." not in object_name.split("/") and "\\" not in object_name:
+                return value
+            raise ValueError("Invalid announcement media reference")
+        parsed = urlparse(value)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("Media fields must be absolute HTTP or HTTPS URLs")
-        return value.strip()
+        return value
 
 
 class AnnouncementUpdate(BaseModel):
